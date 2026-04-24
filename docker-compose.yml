@@ -1,0 +1,68 @@
+version: "3.8"
+
+# =============================================================================
+# BetterDesk + RustDesk - Template generico per Synology NAS
+# =============================================================================
+# PRIMA DI AVVIARE: sostituisci tutti i placeholder con i tuoi valori reali.
+# Cerca e sostituisci le stringhe seguenti in questo file:
+#
+#   YOUR_DOMAIN        -> Il tuo dominio (es. rustdesk.miodominio.com)
+#   YOUR_ADMIN_EMAIL   -> Email dell'amministratore BetterDesk
+#   YOUR_ADMIN_PASSWORD -> Password sicura per l'admin BetterDesk
+#   YOUR_NAS_VOLUME    -> Path del volume Synology (es. /volume1)
+#
+# NOTA: YOUR_PUBLIC_KEY non va modificato qui.
+# La chiave pubblica viene generata automaticamente al primo avvio del server
+# e si trova in: YOUR_NAS_VOLUME/docker/betterdesk/data/id_ed25519.pub
+# Usala poi per configurare i client RustDesk.
+# =============================================================================
+
+services:
+
+  betterdesk-server:
+    image: ghcr.io/unitronix/betterdesk-server:latest
+    container_name: betterdesk-server
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - RELAY=YOUR_DOMAIN:21117
+      - RELAYSERVERS=YOUR_DOMAIN:21117
+      - DB_URL=/data/db.sqlite3
+      - INIT_ADMIN_USER=admin
+      - INIT_ADMIN_PASS=YOUR_ADMIN_PASSWORD
+      - INIT_ADMIN_EMAIL=YOUR_ADMIN_EMAIL
+    command: >
+      hbbs
+      -r YOUR_DOMAIN:21117
+      -relay-servers YOUR_DOMAIN:21117
+      -relay-max-conns-ip 100
+      -db /data/db.sqlite3
+    volumes:
+      - YOUR_NAS_VOLUME/docker/betterdesk/data:/data
+
+  betterdesk-relay:
+    image: ghcr.io/unitronix/betterdesk-server:latest
+    container_name: betterdesk-relay
+    network_mode: host
+    restart: unless-stopped
+    command: hbbr
+    volumes:
+      - YOUR_NAS_VOLUME/docker/betterdesk/data:/data
+
+  betterdesk-console:
+    image: ghcr.io/unitronix/betterdesk-console:latest
+    container_name: betterdesk-console
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - BETTERDESK_API_URL=http://127.0.0.1:21114/api
+      - BETTERDESK_SOCKET_URL=ws://127.0.0.1:21114/ws
+      - NODE_OPTIONS=--dns-result-order=ipv4first
+      - PORT=5000
+      - WS_HOST=0.0.0.0
+      - WS_PORT=5000
+      - HBBS_HOST=YOUR_DOMAIN
+      - HBBS_PORT=21115
+      - HBBR_HOST=YOUR_DOMAIN
+      - HBBR_PORT=21117
+      - BETTERDESKAPIURL=http://localhost:21114/api
