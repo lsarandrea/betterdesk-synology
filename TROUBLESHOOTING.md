@@ -1,215 +1,171 @@
-# BetterDesk — Troubleshooting Guide
+# BetterDesk — Troubleshooting e Problemi Noti
 
-> Problemi reali incontrati durante l'installazione su **betterdesk.arancio.me**  
-> Usare questa guida come riferimento preventivo prima di ogni nuova installazione.
-
----
-
-## ❌ Problema 1: `hostname` incompatibile con `network_mode: service:`
-
-**Errore:**
-```
-Error response from daemon: conflicting options: hostname and the network mode
-```
-
-**Causa:** Quando si usa `network_mode: service:<nome>` sul container `console`, Docker non permette di impostare anche il campo `hostname`.
-
-**Soluzione:** Rimuovere la riga `hostname` dal container `console`. Il campo `hostname` è ammesso **solo** sul container `server`.
-
-```yaml
-console:
-  # hostname: betterdesk-console  ← VA RIMOSSO
-  network_mode: service:server
-```
+Questo file raccoglie tutti i problemi reali incontrati durante il deploy su Synology DSM 7.x,
+le cause tecniche e le soluzioni applicate. Aggiornato con le sessioni Conv-01 → Conv-04.
 
 ---
 
-## ❌ Problema 2: Console non si connette al server — IPv4 vs IPv6
+## Problemi e Soluzioni
 
-**Errore nei log console:**
-```
-DeviceStatus: Go event bus error: connect ECONNREFUSED 127.0.0.1:21114
-```
-
-**Causa:** Node.js di default risolve `localhost` in IPv6 (`::1`), ma il server Go di BetterDesk ascolta solo su IPv4 (`127.0.0.1`). La variabile `BETTERDESK_API_URL=http://localhost:21114/api` viene ignorata — la console ha l'URL hardcoded.
-
-**Soluzione:** Aggiungere al container `console`:
-```yaml
-environment:
-  - NODE_OPTIONS=--dns-result-order=ipv4first
-```
-Questo forza Node.js a preferire IPv4 quando risolve `localhost`, quindi la connessione va su `127.0.0.1:21114`.
-
----
-
-## ❌ Problema 3: Relay usa IP interno Docker invece dell'IP pubblico
-
-**Errore nei log server:**
-```
-WARN: No public IP detected, using LAN IP 172.27.0.2
-WARN: Remote relay connections will fail!
-```
-
-**Causa:** Il server non conosce l'IP pubblico e usa l'IP interno del container Docker come relay. I client fuori LAN non riescono a connettersi.
-
-**Soluzione:** Aggiungere al container `server`:
-```yaml
-environment:
-  - PUBLIC_IP=<IP_PUBBLICO_O_HOSTNAME>
-  - RELAY_SERVERS=<hostname>:21117
-```
-
-Esempio per MaGa:
-```yaml
-  - PUBLIC_IP=betterdesk.maganet.it
-  - RELAY_SERVERS=betterdesk.maganet.it:21117
-```
-
----
-
-## ❌ Problema 4: Rate limiting blocca la registrazione dei client
-
-**Errore nei log server:**
-```
-Rate limited registration from 172.27.0.1
-Security modules initialized: blocklist=0 entries, rate-limit=20/min
-```
-
-**Causa:** I client RustDesk tentano di ri-registrarsi in loop dopo un errore, finendo nel rate limit del server (default: 20 tentativi/min).
-
-**Soluzione temporanea:** Riavviare i client RustDesk sui PC — azzera il loop.
-
-**Soluzione permanente nel compose:**
-```yaml
-environment:
-  - REGISTRATIONS_PER_MIN=300
-```
-> ⚠️ Verifica che la versione dell'immagine in uso supporti questa variabile.
-
----
-
-## ❌ Problema 5: Container con nome anomalo dopo riavvio da GUI
-
-**Sintomo:** Container Manager mostra un container con nome tipo `0a5815c54abf/betterdesk-console` e nessuna operazione GUI funziona.
-
-**Causa:** Docker Compose non riesce ad assegnare il `container_name` specificato perché esiste un conflitto. L'interfaccia grafica va in stato inconsistente.
-
-**Soluzione via SSH:**
-```bash
-cd /volume1/docker/betterdesk
-docker compose down --remove-orphans
-docker compose up -d
-```
-Il flag `--remove-orphans` rimuove tutti i container orfani del progetto, inclusi quelli con nomi anomali. Dopo, ricarica la pagina del browser (F5) sul Container Manager.
-
----
-
-## ❌ Problema 6: `INIT_ADMIN_PASS` ignorata — password generata automaticamente
-
-**Sintomo:** Dopo il primo avvio, le credenziali inserite nel compose non funzionano.
-
-**Causa:** Se nel database esiste già un utente admin (da un avvio precedente), la console ignora `INIT_ADMIN_PASS` e mantiene la password esistente. Se il DB è nuovo, genera una password casuale e la logga.
-
-**Come trovare la password generata:**
-```bash
-docker logs betterdesk-console | grep -i "admin password"
-# Output esempio:
-# Generated admin password: 085fe82360ed899199a118d3cdebe223
-```
-
-**Best practice:** Dopo il primo accesso, cambiare subito la password dal profilo nella console web.
-
----
-
-## ❌ Problema 7: Container `betterdesk-server` in stato `Exited 137`
-
-**Causa:** Il processo è stato killato (OOM killer o `docker stop` forzato da GUI durante operazioni precedenti).
-
+### 1. `permission denied` su `/opt/rustdesk/id_ed25519`
+**Sintomo:** Il container `betterdesk-server` entra in crash loop.
+**Log:** `Failed to initialize keypair: keys: failed to write private key: open /opt/rustdesk/id_ed25519: permission denied`
+**Causa:** La cartella `/volume1/docker/betterdesk/server` è montata con permessi restrittivi da Synology.
 **Soluzione:**
 ```bash
-cd /volume1/docker/betterdesk
-docker compose down --remove-orphans
-docker compose up -d
-docker ps | grep betterdesk
+chown -R root:root /volume1/docker/betterdesk/server
+chmod -R 755 /volume1/docker/betterdesk/server
 ```
 
 ---
 
-## ❌ Problema 8: `permission denied` su `/var/run/docker.sock`
-
-**Sintomo:**
-```
-permission denied while trying to connect to the Docker daemon socket
-```
-
-**Causa:** L'utente SSH in uso non è `root` e non ha accesso al socket Docker di Synology.
-
-**Soluzione:** Connettersi come `root`:
+### 2. `EACCES: permission denied, mkdir '/appdata/uploads'`
+**Sintomo:** Il container `betterdesk-console` entra in crash loop.
+**Log:** `Error: EACCES: permission denied, mkdir '/appdata/uploads'`
+**Causa:** La cartella console è stata creata da root ma Node.js non riesce a scriverci.
+**Soluzione:**
 ```bash
-ssh root@<IP_NAS>
-# oppure da utente normale:
-sudo -i
+mkdir -p /volume1/docker/betterdesk/console/appdata
+chmod -R 777 /volume1/docker/betterdesk/console/appdata
 ```
 
 ---
 
-## ✅ Checklist pre-avvio (nuova installazione)
-
-- [ ] Creare le cartelle: `mkdir -p /volume1/docker/betterdesk/{server,console}`
-- [ ] Impostare permessi: `chown -R root:root /volume1/docker/betterdesk && chmod -R 755 /volume1/docker/betterdesk`
-- [ ] Verificare che `hostname` NON sia presente nel container `console` se si usa `network_mode: service:server`
-- [ ] Aggiungere `NODE_OPTIONS=--dns-result-order=ipv4first` al container `console`
-- [ ] Aggiungere `PUBLIC_IP` e `RELAY_SERVERS` al container `server` con hostname/IP pubblico
-- [ ] Aggiungere `DB_URL` al container `server`
-- [ ] Verificare DNS: il dominio deve puntare all'IP pubblico del server
-- [ ] Verificare il reverse proxy su Synology Application Portal
-- [ ] Aprire le porte sul router: TCP 21115-21119, UDP 21116
+### 3. Pallino arancione (unhealthy) su `betterdesk-server` con `network_mode: host`
+**Sintomo:** Il container è funzionante ma Portainer/Container Manager mostra lo stato arancione.
+**Causa:** Con `network_mode: host` Docker non riesce a raggiungere il container tramite IP virtuale per l'health check integrato nell'immagine.
+**Verifica funzionamento reale:**
+```bash
+curl -s http://localhost:21114/api/health
+# Risposta attesa: {"status":"ok","uptime":"..."}
+```
+**Soluzione:** Aggiungere un healthcheck esplicito nel compose:
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-sf", "http://localhost:21114/api/health"]
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 10s
+```
 
 ---
 
-## 🔍 Comandi di diagnostica utili
+### 4. Password con `$` nel compose viene interpretata come variabile d'ambiente
+**Sintomo:** Warning `The "Maga2026" variable is not set. Defaulting to a blank string.`
+**Causa:** Docker Compose interpreta `$` come inizio di variabile d'ambiente.
+**Soluzione:** Raddoppiare ogni `$` nella password:
+```yaml
+# SBAGLIATO:
+- INIT_ADMIN_PASS=$Maga2026$
+# CORRETTO:
+- INIT_ADMIN_PASS=$$Maga2026$$
+```
+
+---
+
+### 5. `INIT_ADMIN_PASS` ignorata se il DB esiste già
+**Sintomo:** La password impostata nel compose non funziona.
+**Causa:** `INIT_ADMIN_PASS` viene usata solo al primo avvio, quando il DB non esiste ancora.
+**Soluzione:** Se il DB esiste già, recuperare la password generata automaticamente:
+```bash
+cat /volume1/docker/betterdesk/server/.admincredentials 2>/dev/null || echo "file non presente"
+# oppure leggere dai log al primo avvio:
+docker logs betterdesk-console | grep -i "admin password"
+```
+
+---
+
+### 6. Versione 3.0.0 (latest) — Bug `syncUserFromGo is not a function`
+**Sintomo:** Login impossibile — il server Go accetta la password ma la console crasha.
+**Log:** `Go server accepted password for 'admin' — syncing local account` poi `TypeError: db.syncUserFromGo is not a function`
+**Causa:** La v3.0.0 è una alpha (pre-release) con bug nell'autenticazione. Il tag `latest` su ghcr.io puntava erroneamente a questa versione.
+**Soluzione:** Usare la versione 2.4.0 esportata dal NAS arancio (su cui funziona) e importarla:
+```bash
+# Sul NAS arancio (SynStation):
+docker save ghcr.io/unitronix/betterdesk-console:latest ghcr.io/unitronix/betterdesk-server:latest | gzip > /volume1/docker/betterdesk-images-2.4.0.tar.gz
+# Trasferire il file su MaGaServer1 (via DSM File Station o scp)
+# Su MaGaServer1:
+docker load < /volume1/docker/betterdesk-images-2.4.0.tar.gz
+```
+
+---
+
+### 7. Console non si connette al server: `ECONNREFUSED 127.0.0.1:21114` (IPv4 vs IPv6)
+**Causa:** Node.js su alcune versioni risolve `localhost` in `::1` (IPv6) invece di `127.0.0.1` (IPv4).
+**Soluzione:** Aggiungere questa variabile alla console:
+```yaml
+- NODE_OPTIONS=--dns-result-order=ipv4first
+```
+
+---
+
+### 8. Relay usa IP Docker interno (`172.x.x.x`) invece dell'IP pubblico
+**Causa:** Senza `PUBLIC_IP` e `RELAY_SERVERS`, il server annuncia l'IP della scheda Docker.
+**Soluzione:** Aggiungere al server:
+```yaml
+environment:
+  - PUBLIC_IP=<IP_PUBBLICO_SERVER>
+  - RELAY_SERVERS=betterdesk.<tuodominio>:21117
+```
+
+---
+
+### 9. `ss: command not found` su Synology
+**Causa:** L'utility `ss` non è disponibile su Synology DSM.
+**Soluzione alternativa:**
+```bash
+netstat -tlnp | grep <porta>
+```
+
+---
+
+### 10. Bind mount fallito: directory non esiste
+**Log:** `Bind mount failed: '/volume1/docker/betterdesk/console/appdata' does not exist`
+**Soluzione:**
+```bash
+mkdir -p /volume1/docker/betterdesk/console/appdata
+```
+
+---
+
+## Checklist Pre-Avvio
+
+Prima di eseguire `docker compose up -d` su un nuovo server:
+
+- [ ] Cartelle create: `mkdir -p /volume1/docker/betterdesk/server /volume1/docker/betterdesk/console/appdata`
+- [ ] Permessi server: `chown -R root:root /volume1/docker/betterdesk/server && chmod -R 755 /volume1/docker/betterdesk/server`
+- [ ] Permessi console: `chmod -R 777 /volume1/docker/betterdesk/console/appdata`
+- [ ] Porte libere: `netstat -tlnp | grep -E '2111[4-9]|5000'`
+- [ ] Password `$` escaped come `$$` nel compose
+- [ ] DNS sottodomini configurati e propagati
+- [ ] Reverse proxy DSM: `betterdesk.<dominio>:443` → `localhost:5000`
+- [ ] Certificato SSL valido per i sottodomini
+- [ ] Port forwarding router: 21115–21119 TCP+UDP → IP interno del NAS
+
+---
+
+## Comandi Diagnostica Utili
 
 ```bash
 # Stato container
-docker ps | grep betterdesk
+docker ps --filter name=betterdesk --format "table {{.Names}}\t{{.Status}}"
 
-# Log in tempo reale
-docker logs betterdesk-server --tail 30 -f
-docker logs betterdesk-console --tail 30 -f
+# Log server (ultimi 20 righe)
+docker logs betterdesk-server --tail 20
 
-# Verificare che il server risponda sull'API
-docker exec betterdesk-server curl -s http://127.0.0.1:21114/api/health
-# Risposta attesa: {"peers_online":X,"peers_total":Y,"status":"ok",...}
+# Log console (ultimi 20 righe)
+docker logs betterdesk-console --tail 20
 
-# Verificare porte in ascolto sull'host
-ss -tlnp | grep 2111
+# Health check manuale
+curl -s http://localhost:21114/api/health
 
-# Pulizia completa e riavvio
-cd /volume1/docker/betterdesk
-docker compose down --remove-orphans
-docker compose up -d
+# Versione console
+docker exec betterdesk-console cat /app/package.json | grep '"version"'
 
-# Leggere la chiave pubblica (da distribuire ai client)
-cat /volume1/docker/betterdesk/server/id_ed25519.pub
+# Lista tabelle DB console
+docker exec betterdesk-console sqlite3 /appdata/db.sqlite3 ".tables"
 
-# Leggere l'API key (per BetterDesk Agent)
-cat /volume1/docker/betterdesk/server/.api_key
+# Porte occupate
+netstat -tlnp | grep -E '2111[4-9]|5000'
 ```
-
----
-
-## 📋 Architettura finale funzionante
-
-```
-[Client RustDesk] ──TCP 21115-21119──▶ [betterdesk-server]
-                                              │
-                                    network_mode: service:server
-                                              │
-                                       [betterdesk-console]
-                                              │
-                              [Reverse Proxy Synology]
-                                              │
-                         https://betterdesk.<dominio> → porta 5000
-```
-
-La console condivide il network namespace del server tramite `network_mode: service:server`, quindi comunica con il server Go su `127.0.0.1:21114` (stesso stack di rete).

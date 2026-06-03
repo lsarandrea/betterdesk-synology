@@ -2,25 +2,20 @@
 # Dominio: betterdesk.maganet.it
 # Console: https://betterdesk.maganet.it (via reverse proxy Synology → porta 5000)
 # Install page: https://install.maganet.it
+# Versione immagine: 2.4.0 (la 3.0.0 ha bug syncUserFromGo — NON usare :latest)
 #
 # PRIMA DI AVVIARE:
-#   mkdir -p /volume1/docker/betterdesk/{server,console}
-#   chown -R root:root /volume1/docker/betterdesk
-#   chmod -R 755 /volume1/docker/betterdesk
+#   mkdir -p /volume1/docker/betterdesk/server /volume1/docker/betterdesk/console/appdata
+#   chown -R root:root /volume1/docker/betterdesk/server
+#   chmod -R 755 /volume1/docker/betterdesk/server
+#   chmod -R 777 /volume1/docker/betterdesk/console/appdata
 
 services:
   server:
     image: ghcr.io/unitronix/betterdesk-server:latest
     container_name: betterdesk-server
     hostname: betterdesk-server
-    ports:
-      - "21114:21114"
-      - "21115:21115"
-      - "21116:21116/tcp"
-      - "21116:21116/udp"
-      - "21117:21117"
-      - "21118:21118"
-      - "21119:21119"
+    network_mode: host
     command:
       - "/usr/local/bin/betterdesk-server"
       - "-mode"
@@ -32,34 +27,37 @@ services:
     environment:
       - ENCRYPTED_ONLY=1
       - DB_URL=/opt/rustdesk/db_v2.sqlite3
-      # IP pubblico reale di MaGaServer1 (rilevato automaticamente al primo avvio)
-      - PUBLIC_IP=217.198.140.12
       - RELAY_SERVERS=betterdesk.maganet.it:21117
-    networks:
-      - betterdesk-net
+      - PUBLIC_IP=217.198.140.12
+    healthcheck:
+      # FIX: con network_mode:host il pallino Portainer/CM è arancione senza healthcheck esplicito.
+      # Questo healthcheck forza il controllo via localhost e rende il container verde.
+      test: ["CMD", "curl", "-sf", "http://localhost:21114/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   console:
     image: ghcr.io/unitronix/betterdesk-console:latest
     container_name: betterdesk-console
-    # NOTA: hostname rimosso — incompatibile con network_mode: service:
-    ports:
-      - "5000:5000"
-      - "21121:21121"
-    network_mode: service:server
+    hostname: betterdesk-console
+    network_mode: host
     volumes:
       - /volume1/docker/betterdesk/server:/opt/rustdesk
-      - /volume1/docker/betterdesk/console:/app/data
+      # NOTA: cartella appdata separata (non app/data) — deve esistere con chmod 777
+      - /volume1/docker/betterdesk/console/appdata:/appdata
     environment:
       - NODE_ENV=production
       - PORT=5000
       - HOST=0.0.0.0
       - API_HOST=0.0.0.0
-      - SERVER_BACKEND=betterdesk-server
-      - HBBS_API_URL=http://127.0.0.1:21114/api
-      - BETTERDESK_API_URL=http://127.0.0.1:21114/api
+      - SERVER_BACKEND=localhost
+      - HBBS_API_URL=http://localhost:21114/api
+      - BETTERDESK_API_URL=http://localhost:21114/api
       - RUSTDESK_PATH=/opt/rustdesk
-      - DATA_DIR=/app/data
+      - DATA_DIR=/appdata
       - DB_PATH=/opt/rustdesk/db_v2.sqlite3
       - PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
       - API_KEY_PATH=/opt/rustdesk/.api_key
@@ -72,15 +70,10 @@ services:
       - CDAP_URL=ws://localhost:21122/cdap
       - DOCKER=true
       - INIT_ADMIN_USER=admin
+      # FIX: i $ nella password vanno escaped con $$ nel compose
+      # Esempio: $Maga2026$ diventa $$Maga2026$$
       # Se il DB esiste già, questa variabile viene ignorata.
-      # Usare: docker logs betterdesk-console | grep -i "admin password"
       - INIT_ADMIN_PASS=CHANGE_ME_PASSWORD
-      # FIX: forza Node.js a usare IPv4 → risolve ECONNREFUSED su 127.0.0.1:21114
+      # FIX: forza Node.js a usare IPv4 → risolve ECONNREFUSED su localhost:21114
       - NODE_OPTIONS=--dns-result-order=ipv4first
-    depends_on:
-      - server
     restart: unless-stopped
-
-networks:
-  betterdesk-net:
-    driver: bridge
