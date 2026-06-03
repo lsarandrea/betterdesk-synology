@@ -32,8 +32,8 @@ services:
     environment:
       - ENCRYPTED_ONLY=1
       - DB_URL=/opt/rustdesk/db_v2.sqlite3
-      # FIX: IP pubblico esplicito — evita che il server usi l'IP Docker interno
-      - PUBLIC_IP=93.38.53.82
+      # IP pubblico reale di MaGaServer1 (rilevato automaticamente al primo avvio)
+      - PUBLIC_IP=217.198.140.12
       - RELAY_SERVERS=betterdesk.maganet.it:21117
     networks:
       - betterdesk-net
