@@ -1,6 +1,6 @@
 @echo off
 set SERVER=betterdesk.maganet.it
-set PUBKEY=YOUR_PUBLIC_KEY
+set PUBKEY=w647yKhUkY49QHb/UxomU8oq0ZEf+nVF5+TiNlqHQFg=
 set API=http://betterdesk.maganet.it:21121
 
 echo [MaGa] Installazione RustDesk...

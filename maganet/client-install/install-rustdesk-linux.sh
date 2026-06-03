@@ -1,51 +1,36 @@
 #!/bin/bash
-set -e
+# MaGa — Installazione RustDesk su Linux
 
 SERVER="betterdesk.maganet.it"
-PUBKEY="YOUR_PUBLIC_KEY"
+PUBKEY="w647yKhUkY49QHb/UxomU8oq0ZEf+nVF5+TiNlqHQFg="
 API="http://betterdesk.maganet.it:21121"
 
-echo "[MaGa] Installazione RustDesk — Linux"
+echo "[MaGa] Installazione RustDesk su Linux..."
 
-if [ "$EUID" -ne 0 ]; then
-  echo "ERRORE: Esegui come root: sudo $0"
-  exit 1
-fi
+echo "[1/4] Download ultima versione RustDesk..."
+DEB_URL=$(curl -s https://api.github.com/repos/rustdesk/rustdesk/releases/latest \
+  | grep browser_download_url \
+  | grep 'x86_64.deb' \
+  | head -1 \
+  | cut -d '"' -f 4)
+curl -L "$DEB_URL" -o /tmp/rustdesk.deb
 
-ARCH=$(uname -m)
-case $ARCH in
-  x86_64)  PKG_ARCH="x86_64" ;;
-  aarch64) PKG_ARCH="aarch64" ;;
-  *) echo "Architettura non supportata: $ARCH"; exit 1 ;;
-esac
-
+echo "[2/4] Installazione pacchetto..."
 if command -v apt-get &>/dev/null; then
-  PKG_TYPE="deb"
+  apt-get install -y /tmp/rustdesk.deb 2>/dev/null || dpkg -i /tmp/rustdesk.deb
 elif command -v dnf &>/dev/null; then
-  PKG_TYPE="rpm"
-else
-  echo "Package manager non supportato"
-  exit 1
+  RPM_URL=$(curl -s https://api.github.com/repos/rustdesk/rustdesk/releases/latest \
+    | grep browser_download_url \
+    | grep 'x86_64.rpm' \
+    | head -1 \
+    | cut -d '"' -f 4)
+  curl -L "$RPM_URL" -o /tmp/rustdesk.rpm
+  dnf install -y /tmp/rustdesk.rpm
 fi
 
-echo "[1/3] Download RustDesk $PKG_ARCH.$PKG_TYPE..."
-DL_URL=$(curl -s https://api.github.com/repos/rustdesk/rustdesk/releases/latest \
-  | grep browser_download_url | grep "$PKG_ARCH.$PKG_TYPE" | head -1 | cut -d '"' -f 4)
-
-curl -L -o /tmp/rustdesk.$PKG_TYPE "$DL_URL"
-
-echo "[2/3] Installazione..."
-if [ "$PKG_TYPE" = "deb" ]; then
-  apt-get install -y /tmp/rustdesk.$PKG_TYPE || dpkg -i /tmp/rustdesk.$PKG_TYPE
-else
-  dnf install -y /tmp/rustdesk.$PKG_TYPE || rpm -ivh /tmp/rustdesk.$PKG_TYPE
-fi
-rm -f /tmp/rustdesk.$PKG_TYPE
-
-echo "[3/3] Configurazione server MaGa..."
-CONFIG_DIR="/root/.config/rustdesk/config"
+echo "[3/4] Configurazione server MaGa..."
+CONFIG_DIR="$HOME/.config/rustdesk"
 mkdir -p "$CONFIG_DIR"
-
 cat > "$CONFIG_DIR/RustDesk.toml" <<EOF
 rendezvous_server = '$SERVER'
 nat_type = 1
@@ -56,12 +41,6 @@ api-server = '$API'
 relay-server = '$SERVER'
 EOF
 
-if [ -n "$SUDO_USER" ]; then
-  USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-  USER_CONFIG="$USER_HOME/.config/rustdesk/config"
-  mkdir -p "$USER_CONFIG"
-  cp "$CONFIG_DIR/RustDesk.toml" "$USER_CONFIG/RustDesk.toml"
-  chown -R "$SUDO_USER:$SUDO_USER" "$USER_CONFIG"
-fi
-
-echo "Completato! Server: $SERVER"
+echo "[4/4] Completato!"
+echo "  Server: $SERVER"
+echo "  API:    $API"

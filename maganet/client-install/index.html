@@ -3,137 +3,84 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MaGa — Installa RustDesk</title>
+  <title>MaGa Remote — Installa il client</title>
   <style>
     :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --surface2: #1c2128;
-      --border: #30363d;
-      --text: #e6edf3;
-      --text-muted: #8b949e;
-      --accent: #d4a017;
-      --accent-hover: #e6b520;
-      --radius: 0.75rem;
+      --yellow: #d4a017;
+      --yellow-dark: #b8860f;
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --border: #2a2a2a;
+      --text: #e8e8e8;
+      --text-muted: #888;
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem 1rem;
-    }
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 2.5rem;
-    }
-    .logo svg { width: 48px; height: 48px; }
-    .logo-text { font-size: 2rem; font-weight: 700; letter-spacing: -0.03em; }
-    .logo-text span { color: var(--accent); }
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 2rem;
-      width: 100%;
-      max-width: 520px;
-    }
-    h1 { font-size: 1.35rem; margin-bottom: 0.5rem; }
-    p.sub { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.75rem; }
-    .btns { display: flex; flex-direction: column; gap: 0.75rem; }
-    .btn {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 0.9rem 1.25rem;
-      border-radius: var(--radius);
-      text-decoration: none;
-      font-size: 0.95rem;
-      font-weight: 500;
-      transition: border-color 0.18s, background 0.18s;
-    }
-    .btn:hover { border-color: var(--accent); background: #1f2430; }
-    .btn .os-icon { font-size: 1.4rem; min-width: 2rem; text-align: center; }
-    .btn .os-label { flex: 1; }
-    .btn .badge {
-      background: var(--accent);
-      color: #000;
-      font-size: 0.7rem;
-      font-weight: 700;
-      padding: 0.15rem 0.5rem;
-      border-radius: 999px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .info {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1rem 1.25rem;
-      margin-top: 1.25rem;
-      font-size: 0.82rem;
-      color: var(--text-muted);
-    }
-    .info strong { color: var(--text); }
-    .info .row { display: flex; gap: 0.5rem; margin-top: 0.4rem; align-items: baseline; }
-    .info .label { min-width: 80px; }
-    .info .val { font-family: 'SF Mono', 'Consolas', monospace; color: var(--accent); word-break: break-all; }
-    .footer { margin-top: 2rem; color: var(--text-muted); font-size: 0.78rem; text-align: center; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    header { background: var(--surface); border-bottom: 2px solid var(--yellow); padding: 1.2rem 2rem; display: flex; align-items: center; gap: 1rem; }
+    header h1 { font-size: 1.4rem; color: var(--yellow); font-weight: 700; letter-spacing: 0.02em; }
+    header span { color: var(--text-muted); font-size: 0.9rem; }
+    main { max-width: 900px; margin: 0 auto; padding: 3rem 2rem; }
+    h2 { font-size: 1.6rem; margin-bottom: 0.5rem; }
+    .subtitle { color: var(--text-muted); margin-bottom: 2.5rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.8rem; }
+    .card h3 { font-size: 1.1rem; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.5rem; }
+    .card p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.2rem; }
+    .btn { display: inline-block; background: var(--yellow); color: #000; font-weight: 700; padding: 0.6rem 1.4rem; border-radius: 8px; text-decoration: none; font-size: 0.9rem; transition: background 0.2s; }
+    .btn:hover { background: var(--yellow-dark); }
+    .btn-ghost { background: transparent; border: 1px solid var(--yellow); color: var(--yellow); margin-left: 0.5rem; }
+    .btn-ghost:hover { background: var(--yellow); color: #000; }
+    .info { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem 2rem; margin-top: 2.5rem; }
+    .info h3 { color: var(--yellow); margin-bottom: 1rem; }
+    .info code { background: #111; border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem 1rem; display: block; font-size: 0.85rem; color: #a8d8a8; word-break: break-all; margin-top: 0.5rem; }
+    .key-row { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+    .key-label { color: var(--text-muted); font-size: 0.85rem; min-width: 80px; margin-top: 0.9rem; }
+    footer { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.8rem; border-top: 1px solid var(--border); margin-top: 4rem; }
   </style>
 </head>
 <body>
-
-  <div class="logo">
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="MaGa logo">
-      <rect width="48" height="48" rx="12" fill="#d4a017"/>
-      <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle"
-            font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
-            font-size="22" font-weight="800" fill="#000">MG</text>
-    </svg>
-    <div class="logo-text">Ma<span>Ga</span></div>
-  </div>
-
-  <div class="card">
-    <h1>Installazione Client RustDesk</h1>
-    <p class="sub">Scarica e configura il client per connetterti all'infrastruttura MaGa.</p>
-
-    <div class="btns">
-      <a href="install-rustdesk-windows.bat" class="btn">
-        <span class="os-icon">🪟</span>
-        <span class="os-label">Windows</span>
-        <span class="badge">.bat</span>
-      </a>
-      <a href="install-rustdesk-macos.sh" class="btn">
-        <span class="os-icon">🍎</span>
-        <span class="os-label">macOS</span>
-        <span class="badge">.sh</span>
-      </a>
-      <a href="install-rustdesk-linux.sh" class="btn">
-        <span class="os-icon">🐧</span>
-        <span class="os-label">Linux</span>
-        <span class="badge">.sh</span>
-      </a>
+  <header>
+    <h1>🟡 MaGa Remote</h1>
+    <span>Powered by BetterDesk · betterdesk.maganet.it</span>
+  </header>
+  <main>
+    <h2>Installa il client di accesso remoto</h2>
+    <p class="subtitle">Scarica e configura automaticamente RustDesk sul tuo dispositivo per connetterti alla rete MaGa.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>🪟 Windows</h3>
+        <p>Esegui lo script .bat come Amministratore. Installa e configura RustDesk automaticamente.</p>
+        <a class="btn" href="install-rustdesk-windows.bat" download>Scarica per Windows</a>
+      </div>
+      <div class="card">
+        <h3>🍎 macOS</h3>
+        <p>Esegui lo script .sh nel Terminale. Richiede permessi amministratore.</p>
+        <a class="btn" href="install-rustdesk-macos.sh" download>Scarica per macOS</a>
+        <a class="btn btn-ghost" href="install-rustdesk-macos.sh" target="_blank">Visualizza</a>
+      </div>
+      <div class="card">
+        <h3>🐧 Linux</h3>
+        <p>Supporta Debian/Ubuntu (.deb) e Fedora/RHEL (.rpm). Esegui con sudo.</p>
+        <a class="btn" href="install-rustdesk-linux.sh" download>Scarica per Linux</a>
+        <a class="btn btn-ghost" href="install-rustdesk-linux.sh" target="_blank">Visualizza</a>
+      </div>
     </div>
-
     <div class="info">
-      <strong>Configurazione automatica:</strong>
-      <div class="row"><span class="label">Server:</span> <span class="val">betterdesk.maganet.it</span></div>
-      <div class="row"><span class="label">Chiave:</span> <span class="val">YOUR_PUBLIC_KEY</span></div>
-      <div class="row"><span class="label">API:</span> <span class="val">http://betterdesk.maganet.it:21121</span></div>
+      <h3>⚙️ Parametri di configurazione MaGa</h3>
+      <div class="key-row">
+        <span class="key-label">Server</span>
+        <code>betterdesk.maganet.it</code>
+      </div>
+      <div class="key-row">
+        <span class="key-label">Chiave pubblica</span>
+        <code>w647yKhUkY49QHb/UxomU8oq0ZEf+nVF5+TiNlqHQFg=</code>
+      </div>
+      <div class="key-row">
+        <span class="key-label">API</span>
+        <code>http://betterdesk.maganet.it:21121</code>
+      </div>
     </div>
-  </div>
-
-  <div class="footer">MaGa IT — Supporto tecnico &middot; maganet.it</div>
-
+  </main>
+  <footer>MaGa Network · Assistenza remota sicura · <a href="https://betterdesk.maganet.it" style="color:var(--yellow)">Accedi alla console</a></footer>
 </body>
 </html>

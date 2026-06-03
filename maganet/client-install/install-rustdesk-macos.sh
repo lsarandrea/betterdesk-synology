@@ -1,35 +1,28 @@
 #!/bin/bash
-set -e
+# MaGa — Installazione RustDesk su macOS
 
 SERVER="betterdesk.maganet.it"
-PUBKEY="YOUR_PUBLIC_KEY"
+PUBKEY="w647yKhUkY49QHb/UxomU8oq0ZEf+nVF5+TiNlqHQFg="
 API="http://betterdesk.maganet.it:21121"
 
-echo "[MaGa] Installazione RustDesk — macOS"
+echo "[MaGa] Installazione RustDesk su macOS..."
 
-ARCH=$(uname -m)
-if [ "$ARCH" = "arm64" ]; then
-  ARCH_SUFFIX="aarch64"
-else
-  ARCH_SUFFIX="x86_64"
-fi
-
-echo "[1/3] Download RustDesk macOS $ARCH_SUFFIX..."
+echo "[1/4] Download ultima versione RustDesk..."
 DMG_URL=$(curl -s https://api.github.com/repos/rustdesk/rustdesk/releases/latest \
-  | grep browser_download_url | grep "$ARCH_SUFFIX.dmg" | head -1 | cut -d '"' -f 4)
+  | grep browser_download_url \
+  | grep '.dmg' \
+  | head -1 \
+  | cut -d '"' -f 4)
+curl -L "$DMG_URL" -o /tmp/rustdesk.dmg
 
-curl -L -o /tmp/rustdesk.dmg "$DMG_URL"
+echo "[2/4] Installazione..."
+hdiutil attach /tmp/rustdesk.dmg -quiet
+cp -R /Volumes/RustDesk/RustDesk.app /Applications/ 2>/dev/null || true
+hdiutil detach /Volumes/RustDesk -quiet 2>/dev/null || true
 
-echo "[2/3] Installazione..."
-MOUNT_DIR=$(hdiutil attach /tmp/rustdesk.dmg | grep Volumes | awk '{print $3}')
-cp -R "$MOUNT_DIR/RustDesk.app" /Applications/
-hdiutil detach "$MOUNT_DIR" -quiet
-rm -f /tmp/rustdesk.dmg
-
-echo "[3/3] Configurazione server MaGa..."
-CONFIG_DIR="$HOME/Library/Preferences/RustDesk/config"
+echo "[3/4] Configurazione server MaGa..."
+CONFIG_DIR="$HOME/Library/Preferences/com.carriez.rustdesk"
 mkdir -p "$CONFIG_DIR"
-
 cat > "$CONFIG_DIR/RustDesk.toml" <<EOF
 rendezvous_server = '$SERVER'
 nat_type = 1
@@ -40,5 +33,7 @@ api-server = '$API'
 relay-server = '$SERVER'
 EOF
 
-echo "Completato! Server: $SERVER"
-open /Applications/RustDesk.app
+echo "[4/4] Completato!"
+echo "  Server: $SERVER"
+echo "  API:    $API"
+open /Applications/RustDesk.app 2>/dev/null || true
