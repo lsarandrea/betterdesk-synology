@@ -7,9 +7,6 @@
 #   mkdir -p /volume1/docker/betterdesk/{server,console}
 #   chown -R root:root /volume1/docker/betterdesk
 #   chmod -R 755 /volume1/docker/betterdesk
-#
-# ⚠️  Sostituire CHANGE_ME_PASSWORD con una password sicura prima del deploy
-# ⚠️  Sostituire PUBLIC_IP con l'IP pubblico reale di MaGaServer1
 
 services:
   server:
@@ -35,8 +32,8 @@ services:
     environment:
       - ENCRYPTED_ONLY=1
       - DB_URL=/opt/rustdesk/db_v2.sqlite3
-      # FIX: specificare sempre PUBLIC_IP per evitare che il server usi l'IP Docker interno
-      - PUBLIC_IP=betterdesk.maganet.it
+      # FIX: IP pubblico esplicito — evita che il server usi l'IP Docker interno
+      - PUBLIC_IP=93.38.53.82
       - RELAY_SERVERS=betterdesk.maganet.it:21117
     networks:
       - betterdesk-net
@@ -75,10 +72,10 @@ services:
       - CDAP_URL=ws://localhost:21122/cdap
       - DOCKER=true
       - INIT_ADMIN_USER=admin
-      # ⚠️  CAMBIARE con password sicura — se il DB esiste già, questa variabile viene ignorata
-      # In quel caso usare: docker logs betterdesk-console | grep -i "admin password"
+      # Se il DB esiste già, questa variabile viene ignorata.
+      # Usare: docker logs betterdesk-console | grep -i "admin password"
       - INIT_ADMIN_PASS=CHANGE_ME_PASSWORD
-      # FIX: forza Node.js a usare IPv4 per localhost → risolve ECONNREFUSED su 127.0.0.1:21114
+      # FIX: forza Node.js a usare IPv4 → risolve ECONNREFUSED su 127.0.0.1:21114
       - NODE_OPTIONS=--dns-result-order=ipv4first
     depends_on:
       - server
