@@ -1,7 +1,7 @@
 # BetterDesk — Troubleshooting e Problemi Noti
 
 Questo file raccoglie tutti i problemi reali incontrati durante il deploy su Synology DSM 7.x,
-le cause tecniche e le soluzioni applicate. Aggiornato con le sessioni Conv-01 → Conv-04.
+le cause tecniche e le soluzioni applicate. Aggiornato con le sessioni Conv-01 → Conv-05.
 
 ---
 
@@ -80,13 +80,16 @@ docker logs betterdesk-console | grep -i "admin password"
 **Sintomo:** Login impossibile — il server Go accetta la password ma la console crasha.
 **Log:** `Go server accepted password for 'admin' — syncing local account` poi `TypeError: db.syncUserFromGo is not a function`
 **Causa:** La v3.0.0 è una alpha (pre-release) con bug nell'autenticazione. Il tag `latest` su ghcr.io puntava erroneamente a questa versione.
-**Soluzione:** Usare la versione 2.4.0 esportata dal NAS arancio (su cui funziona) e importarla:
+**Soluzione:** Usare la versione 2.3.0/2.4.0 esportata dal NAS arancio (su cui funziona) e importarla:
 ```bash
 # Sul NAS arancio (SynStation):
 docker save ghcr.io/unitronix/betterdesk-console:latest ghcr.io/unitronix/betterdesk-server:latest | gzip > /volume1/docker/betterdesk-images-2.4.0.tar.gz
 # Trasferire il file su MaGaServer1 (via DSM File Station o scp)
 # Su MaGaServer1:
 docker load < /volume1/docker/betterdesk-images-2.4.0.tar.gz
+# Verifica versione effettiva caricata:
+docker exec betterdesk-console cat /app/package.json | grep '"version"'
+# NOTA: il tar.gz potrebbe contenere la 2.3.0 invece della 2.4.0 — va bene uguale, entrambe stabili
 ```
 
 ---
@@ -129,6 +132,49 @@ mkdir -p /volume1/docker/betterdesk/console/appdata
 
 ---
 
+### 11. Login fallisce — hash `unknown` / mismatch PBKDF2 vs bcrypt (Conv-05)
+**Sintomo:** Dopo tentativi di reset password manuale, il login continua a fallire.
+**Log console:** `[AUTH] hash type: unknown, length: 118` oppure `[AUTH] Login failed: password mismatch for 'admin' (hash type: PBKDF2)`
+**Causa:** Ci sono due database distinti:
+- **Server Go** (`/opt/rustdesk/db_v2.sqlite3`): usa PBKDF2
+- **Console Node.js** (appdata `db.sqlite3` o `auth.db`): usa bcrypt
+
+Se si tenta di aggiornare manualmente `password_hash` con un hash bcrypt nel DB del **server**, l'autenticazione fallisce perché il server si aspetta PBKDF2. Viceversa se si inserisce PBKDF2 nella console.
+
+**Diagnosi:**
+```bash
+# Controlla hash nel DB del server Go:
+docker exec betterdesk-server sqlite3 /opt/rustdesk/db_v2.sqlite3 "SELECT username, password_hash FROM users WHERE username='admin';"
+# hash PBKDF2 → inizia con: pbkdf2-sha256$...
+
+# Controlla log autenticazione:
+docker logs betterdesk-console --tail 30 | grep -i auth
+# Se vedi "hash type: unknown" → il DB ha un hash non riconosciuto dalla console
+```
+
+**Soluzione — generare hash bcrypt corretto per il DB console:**
+```bash
+# Genera hash bcrypt con la password desiderata (es. $Maga2026$)
+docker exec betterdesk-console node -e "const bcrypt=require('bcrypt');bcrypt.hash('\$Maga2026\$',10).then(h=>console.log(h))"
+# Aggiorna il DB console con l'hash generato
+docker exec betterdesk-console sqlite3 /appdata/auth.db "UPDATE users SET password_hash='<HASH_GENERATO>' WHERE username='admin';"
+```
+
+**Soluzione alternativa — usare la variabile `INIT_ADMIN_PASS` con `$$` escaped:**
+> Funziona solo se il DB è vuoto o si usa `forceUpdate`. Se il DB esiste già, viene ignorata.
+
+**⚠️ PROBLEMA APERTO (Conv-05):** Nonostante la generazione dell'hash bcrypt corretto,
+il login su `https://betterdesk.maganet.it` continua a fallire. La Console Node.js usa `auth.db`
+come database primario di autenticazione (non `db.sqlite3`). Verificare il path esatto:
+```bash
+docker exec betterdesk-console ls /appdata/
+# Risultato atteso: agent-builds auth.db auth.db-shm auth.db-wal build-cache db.sqlite3 uploads
+# Il DB di autenticazione è auth.db, NON db.sqlite3!
+docker exec betterdesk-console sqlite3 /appdata/auth.db ".tables"
+```
+
+---
+
 ## Checklist Pre-Avvio
 
 Prima di eseguire `docker compose up -d` su un nuovo server:
@@ -163,8 +209,14 @@ curl -s http://localhost:21114/api/health
 # Versione console
 docker exec betterdesk-console cat /app/package.json | grep '"version"'
 
-# Lista tabelle DB console
-docker exec betterdesk-console sqlite3 /appdata/db.sqlite3 ".tables"
+# Lista tabelle DB server Go
+docker exec betterdesk-server sqlite3 /opt/rustdesk/db_v2.sqlite3 ".tables"
+
+# Lista tabelle DB console (auth.db è quello usato per il login!)
+docker exec betterdesk-console sqlite3 /appdata/auth.db ".tables"
+
+# Hash password admin nel DB server
+docker exec betterdesk-server sqlite3 /opt/rustdesk/db_v2.sqlite3 "SELECT username, password_hash FROM users WHERE username='admin';"
 
 # Porte occupate
 netstat -tlnp | grep -E '2111[4-9]|5000'
