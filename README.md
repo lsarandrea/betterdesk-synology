@@ -2,7 +2,7 @@
 
 Installazione e configurazione di [BetterDesk](https://github.com/unitronix/betterdesk) (console di gestione per RustDesk) su Synology NAS con DSM 7.x.
 
-> **⚠️ Versione immagine:** Usare l'immagine `2.4.0` (esportata dal NAS arancio). La versione `3.0.0` (tag `:latest` da giugno 2026) è una alpha con bug di autenticazione (`syncUserFromGo is not a function`). NON usare `:latest` finché non viene rilasciata una versione stabile.
+> **⚠️ Versione immagine:** Usare l'immagine `2.3.0` (esportata dal NAS arancio come `betterdesk-images-2.4.0.tar.gz`). La versione `3.0.0` (tag `:latest` da giugno 2026) è una alpha con bug di autenticazione (`syncUserFromGo is not a function`). NON usare `:latest` finché non viene rilasciata una versione stabile.
 
 ---
 
@@ -102,22 +102,32 @@ Aprire le seguenti porte verso l'IP interno del NAS:
 ### ✅ Completato
 
 - [x] Deploy BetterDesk su NAS arancio (`betterdesk.arancio.me`) — **funzionante**
-- [x] Deploy BetterDesk su MaGaServer1 (`betterdesk.maganet.it`) — **funzionante**
+- [x] Deploy BetterDesk su MaGaServer1 (`betterdesk.maganet.it`) — container **healthy** ✅
 - [x] Container `betterdesk-server` e `betterdesk-console` entrambi `(healthy)` ✅
 - [x] Reverse proxy DSM + SSL wildcard `*.maganet.it` attivo
-- [x] Documentazione troubleshooting (8+ problemi risolti)
+- [x] Immagine v2.3.0 caricata (tar.gz da NAS arancio) — v3.0.0 alpha bypassata
+- [x] Documentazione troubleshooting (11 problemi risolti/documentati)
 - [x] Template generico con placeholder aggiornato
 - [x] Cartella `maganet/` con configurazione specifica
+- [x] Identificato DB di autenticazione corretto: `/appdata/auth.db` (non `db.sqlite3`)
 
-### 🔜 Da Completare (MaGa)
+### 🔴 PROBLEMA APERTO — Da risolvere (priorità massima)
 
-- [ ] **Recupero chiave pubblica** — `cat /volume1/docker/betterdesk/server/id_ed25519.pub`
-- [ ] **Aggiornare script client** in `maganet/client-install/` con la chiave pubblica reale
-- [ ] **Pagina `install.maganet.it`** — configurare reverse proxy DSM e verificare accesso
-- [ ] **Testare client RustDesk** — configurare un client con server `betterdesk.maganet.it`
-- [ ] **Branding MaGa** — logo, titolo "MaGa Remote", palette giallo `#d4a017`, pagina login personalizzata
-- [ ] **Agente remoto** su client arancio (mancante anche su arancio)
-- [ ] **Valutare aggiornamento** a versione stabile quando disponibile (dopo v3.0.0-alpha)
+- [ ] **Accesso a `https://betterdesk.maganet.it`** — login admin non funziona
+  - La console usa `/appdata/auth.db` per l'autenticazione
+  - L'hash in `auth.db` deve essere **bcrypt** (non PBKDF2)
+  - Verificare le tabelle di `auth.db` e aggiornare con hash bcrypt corretto
+  - Vedi **Problema #11** in TROUBLESHOOTING.md per la diagnosi completa
+
+### 🔜 Da fare (in ordine, dopo risolto l'accesso)
+
+1. **Recupero chiave pubblica** — `cat /volume1/docker/betterdesk/server/id_ed25519.pub`
+2. **Aggiornare script client** in `maganet/client-install/` con la chiave pubblica reale
+3. **Pagina `install.maganet.it`** — configurare reverse proxy DSM e verificare accesso
+4. **Testare client RustDesk** — configurare un client con server `betterdesk.maganet.it`
+5. **Branding MaGa** — logo, titolo "MaGa Remote", palette giallo `#d4a017`, pagina login personalizzata
+6. **Agente remoto** su client arancio (mancante anche su arancio)
+7. **Valutare aggiornamento** a versione stabile quando disponibile (dopo v3.0.0-alpha)
 
 ### 🔮 Futuro
 
@@ -135,4 +145,5 @@ Vedi [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) per la lista completa.
 - `permission denied` → `chmod 755` su `/server`, `chmod 777` su `/console/appdata`
 - Pallino arancione Portainer → aggiungere `healthcheck` esplicito nel compose (già incluso)
 - Password con `$` → usare `$$` nel compose
-- v3.0.0 bug login → usare immagine 2.4.0 esportata da arancio
+- v3.0.0 bug login → usare immagine 2.3.0/2.4.0 esportata da arancio
+- **Login fallisce dopo reset manuale** → usare `/appdata/auth.db` (non `db.sqlite3`) e hash bcrypt
