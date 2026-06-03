@@ -1,21 +1,29 @@
-# =============================================================================
-# BetterDesk + RustDesk — Configurazione MaGa (MaGaServer1)
-# Host: betterdesk.maganet.it
-# Console: https://betterdesk.maganet.it  (reverse proxy → localhost:5000)
-# Pagina installazione client: https://install.maganet.it
-# Volume base: /volume1/docker/betterdesk/
-# =============================================================================
-# ATTENZIONE: questo file contiene dati specifici dell'ambiente MaGa.
-# NON usare questo file come template — usa ../docker-compose.yml
-# =============================================================================
+# BetterDesk — MaGaServer1
+# Dominio: betterdesk.maganet.it
+# Console: https://betterdesk.maganet.it (via reverse proxy Synology → porta 5000)
+# Install page: https://install.maganet.it
+#
+# PRIMA DI AVVIARE:
+#   mkdir -p /volume1/docker/betterdesk/{server,console}
+#   chown -R root:root /volume1/docker/betterdesk
+#   chmod -R 755 /volume1/docker/betterdesk
+#
+# ⚠️  Sostituire CHANGE_ME_PASSWORD con una password sicura prima del deploy
+# ⚠️  Sostituire PUBLIC_IP con l'IP pubblico reale di MaGaServer1
 
 services:
-
   server:
     image: ghcr.io/unitronix/betterdesk-server:latest
     container_name: betterdesk-server
     hostname: betterdesk-server
-    network_mode: host
+    ports:
+      - "21114:21114"
+      - "21115:21115"
+      - "21116:21116/tcp"
+      - "21116:21116/udp"
+      - "21117:21117"
+      - "21118:21118"
+      - "21119:21119"
     command:
       - "/usr/local/bin/betterdesk-server"
       - "-mode"
@@ -27,15 +35,21 @@ services:
     environment:
       - ENCRYPTED_ONLY=1
       - DB_URL=/opt/rustdesk/db_v2.sqlite3
+      # FIX: specificare sempre PUBLIC_IP per evitare che il server usi l'IP Docker interno
+      - PUBLIC_IP=betterdesk.maganet.it
       - RELAY_SERVERS=betterdesk.maganet.it:21117
-      - PUBLIC_IP=217.198.140.12
+    networks:
+      - betterdesk-net
     restart: unless-stopped
 
   console:
     image: ghcr.io/unitronix/betterdesk-console:latest
     container_name: betterdesk-console
-    hostname: betterdesk-console
-    network_mode: host
+    # NOTA: hostname rimosso — incompatibile con network_mode: service:
+    ports:
+      - "5000:5000"
+      - "21121:21121"
+    network_mode: service:server
     volumes:
       - /volume1/docker/betterdesk/server:/opt/rustdesk
       - /volume1/docker/betterdesk/console:/app/data
@@ -44,9 +58,9 @@ services:
       - PORT=5000
       - HOST=0.0.0.0
       - API_HOST=0.0.0.0
-      - SERVER_BACKEND=localhost
-      - HBBS_API_URL=http://localhost:21114/api
-      - BETTERDESK_API_URL=http://localhost:21114/api
+      - SERVER_BACKEND=betterdesk-server
+      - HBBS_API_URL=http://127.0.0.1:21114/api
+      - BETTERDESK_API_URL=http://127.0.0.1:21114/api
       - RUSTDESK_PATH=/opt/rustdesk
       - DATA_DIR=/app/data
       - DB_PATH=/opt/rustdesk/db_v2.sqlite3
@@ -61,6 +75,15 @@ services:
       - CDAP_URL=ws://localhost:21122/cdap
       - DOCKER=true
       - INIT_ADMIN_USER=admin
-      - INIT_ADMIN_PASS=$Maga2026$
+      # ⚠️  CAMBIARE con password sicura — se il DB esiste già, questa variabile viene ignorata
+      # In quel caso usare: docker logs betterdesk-console | grep -i "admin password"
+      - INIT_ADMIN_PASS=CHANGE_ME_PASSWORD
+      # FIX: forza Node.js a usare IPv4 per localhost → risolve ECONNREFUSED su 127.0.0.1:21114
       - NODE_OPTIONS=--dns-result-order=ipv4first
+    depends_on:
+      - server
     restart: unless-stopped
+
+networks:
+  betterdesk-net:
+    driver: bridge
