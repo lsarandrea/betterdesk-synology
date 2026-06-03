@@ -1,149 +1,472 @@
-# BetterDesk + RustDesk su Synology NAS — Guida Completa
+# BetterDesk su Synology DS925+
 
-Installazione e configurazione di [BetterDesk](https://github.com/unitronix/betterdesk) (console di gestione per RustDesk) su Synology NAS con DSM 7.x.
-
-> **⚠️ Versione immagine:** Usare l'immagine `2.3.0` (esportata dal NAS arancio come `betterdesk-images-2.4.0.tar.gz`). La versione `3.0.0` (tag `:latest` da giugno 2026) è una alpha con bug di autenticazione (`syncUserFromGo is not a function`). NON usare `:latest` finché non viene rilasciata una versione stabile.
-
----
-
-## Struttura Repository
-
-```
-betterdesk-synology/
-├── docker-compose.yml          ← Template generico (placeholder)
-├── README.md                   ← Questa guida
-├── TROUBLESHOOTING.md          ← Problemi noti e soluzioni
-├── client-install/             ← Pagina web installazione client (template)
-│   ├── index.html
-│   ├── install-rustdesk-windows.bat
-│   ├── install-rustdesk-macos.sh
-│   └── install-rustdesk-linux.sh
-└── maganet/                    ← Configurazione specifica MaGaServer1
-    ├── docker-compose.yml      ← Compose compilato per betterdesk.maganet.it
-    ├── README.md               ← Guida deploy MaGa
-    └── client-install/
-        ├── index.html          ← Pagina install.maganet.it
-        ├── install-rustdesk-windows.bat
-        ├── install-rustdesk-macos.sh
-        └── install-rustdesk-linux.sh
-```
+> Guida completa e definitiva per l'installazione di BetterDesk (RustDesk Pro fork) su Synology NAS con DSM 7.x  
+> **Dominio:** `betterdesk.maganet.it` | **Host:** `MaGaServer1` | **IP pubblico:** `217.198.140.12`
 
 ---
 
-## Installazione Rapida
+## Indice
 
-### 1. Preparazione cartelle
+1. [Prerequisiti](#1-prerequisiti)
+2. [Struttura cartelle](#2-struttura-cartelle)
+3. [Permessi e UID/GID](#3-permessi-e-uidgid)
+4. [Configurazione docker-compose.yml](#4-configurazione-docker-composeyml)
+5. [Installazione fresh start](#5-installazione-fresh-start)
+6. [Verifica post-avvio](#6-verifica-post-avvio)
+7. [Struttura Database](#7-struttura-database)
+8. [Reverse Proxy Synology](#8-reverse-proxy-synology)
+9. [Porte utilizzate](#9-porte-utilizzate)
+10. [Reset completo](#10-reset-completo)
+11. [Roadmap](#11-roadmap)
 
-```bash
-mkdir -p /volume1/docker/betterdesk/server /volume1/docker/betterdesk/console/appdata
-chown -R root:root /volume1/docker/betterdesk/server
-chmod -R 755 /volume1/docker/betterdesk/server
-chmod -R 777 /volume1/docker/betterdesk/console/appdata
+---
+
+## 1. Prerequisiti
+
+- Synology DS925+ con DSM 7.x
+- Docker e Container Manager installati dal Package Center
+- Accesso SSH root al NAS
+- Dominio `betterdesk.maganet.it` con certificato SSL (già configurato nel Reverse Proxy DSM)
+- Immagini disponibili su `ghcr.io/unitronix/`:
+  - `betterdesk-server:latest`
+  - `betterdesk-console:latest`
+
+---
+
+## 2. Struttura cartelle
+
+La struttura **deve essere creata manualmente prima** di avviare i container.
+
+```
+/volume1/docker/betterdesk/
+├── docker-compose.yml
+├── server/          ← dati server Go (chiavi, DB principale)
+│   ├── id_ed25519           (generato al primo avvio)
+│   ├── id_ed25519.pub       (generato al primo avvio)
+│   ├── db_v2.sqlite3        (DB principale - dispositivi, sessioni)
+│   ├── db_v2.sqlite3-shm    (generato automaticamente)
+│   ├── db_v2.sqlite3-wal    (generato automaticamente)
+│   ├── .api_key             (generato al primo avvio)
+│   └── .enrollment_initialized (flag creato al primo avvio)
+└── console/         ← dati console Node.js
+    ├── appdata/             (cartella dati applicazione)
+    │   └── (file runtime)
+    ├── auth.db              ← DB autenticazione console (utenti, sessioni)
+    ├── auth.db-shm
+    ├── auth.db-wal
+    ├── .session_secret      (generato al primo avvio)
+    ├── agent-builds/        (build agenti)
+    ├── build-cache/
+    ├── chat-files/
+    └── uploads/
 ```
 
-### 2. Scarica il compose
+### Creazione struttura
 
 ```bash
-curl -o /volume1/docker/betterdesk/docker-compose.yml \
-  https://raw.githubusercontent.com/lsarandrea/betterdesk-synology/main/docker-compose.yml
+mkdir -p /volume1/docker/betterdesk/server
+mkdir -p /volume1/docker/betterdesk/console/appdata
 ```
 
-### 3. Modifica le variabili
+> ⚠️ **NON creare altri file o cartelle** — vengono tutti generati automaticamente al primo avvio.
 
-Edita `docker-compose.yml` e sostituisci:
-- `YOUR_DOMAIN` → il tuo dominio (es. `betterdesk.tuodominio.it`)
-- `YOUR_PUBLIC_IP` → IP pubblico del server
-- `CHANGE_ME_PASSWORD` → password admin (usa `$$` per ogni `$` nella password)
+---
 
-### 4. Avvio
+## 3. Permessi e UID/GID
+
+> ⚠️ **Questo è il punto critico più comune di fallimento su Synology.**
+
+I container BetterDesk girano con **UID 10001 / GID 10001**. Le cartelle devono essere di proprietà di questo utente.
+
+### Impostazione permessi corretti
 
 ```bash
+chown -R 10001:10001 /volume1/docker/betterdesk/server
+chown -R 10001:10001 /volume1/docker/betterdesk/console
+```
+
+### Verifica permessi
+
+```bash
+ls -la /volume1/docker/betterdesk/
+ls -la /volume1/docker/betterdesk/server/
+ls -la /volume1/docker/betterdesk/console/
+```
+
+Output atteso:
+```
+drwxr-xr-x  1 10001 10001  ... server/
+drwxr-xr-x  1 10001 10001  ... console/
+```
+
+### Permessi speciali per appdata
+
+La cartella `console/appdata` richiede permessi di scrittura estesi:
+
+```bash
+chown -R 10001:10001 /volume1/docker/betterdesk/console/appdata
+chmod 755 /volume1/docker/betterdesk/console/appdata
+```
+
+---
+
+## 4. Configurazione docker-compose.yml
+
+```yaml
+services:
+  server:
+    image: ghcr.io/unitronix/betterdesk-server:latest
+    container_name: betterdesk-server
+    hostname: betterdesk-server
+    network_mode: host
+    command:
+      - "/usr/local/bin/betterdesk-server"
+      - "-mode"
+      - "all"
+      - "-key-file"
+      - "/opt/rustdesk/id_ed25519"
+    volumes:
+      - /volume1/docker/betterdesk/server:/opt/rustdesk
+    environment:
+      - ENCRYPTED_ONLY=1
+      - DB_URL=/opt/rustdesk/db_v2.sqlite3
+      - RELAY_SERVERS=betterdesk.maganet.it:21117
+      - PUBLIC_IP=217.198.140.12
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:21114/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  console:
+    image: ghcr.io/unitronix/betterdesk-console:latest
+    container_name: betterdesk-console
+    hostname: betterdesk-console
+    network_mode: host
+    volumes:
+      - /volume1/docker/betterdesk/server:/opt/rustdesk
+      - /volume1/docker/betterdesk/console/appdata:/appdata
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - HOST=0.0.0.0
+      - API_HOST=0.0.0.0
+      - SERVER_BACKEND=localhost
+      - HBBS_API_URL=http://localhost:21114/api
+      - BETTERDESK_API_URL=http://localhost:21114/api
+      - RUSTDESK_PATH=/opt/rustdesk
+      - DATA_DIR=/appdata
+      - DB_PATH=/opt/rustdesk/db_v2.sqlite3
+      - PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
+      - API_KEY_PATH=/opt/rustdesk/.api_key
+      - WS_HBBS_HOST=localhost
+      - WS_HBBS_PORT=21116
+      - WS_HBBR_HOST=localhost
+      - WS_HBBR_PORT=21117
+      - HBBS_WS_URL=ws://localhost:21118
+      - HBBR_WS_URL=ws://localhost:21119
+      - CDAP_URL=ws://localhost:21122/cdap
+      - DOCKER=true
+      - INIT_ADMIN_USER=admin
+      - NODE_OPTIONS=--dns-result-order=ipv4first
+    restart: unless-stopped
+```
+
+> ⚠️ **IMPORTANTE:** La console **non ha** `depends_on: server`. I due container si avviano in parallelo ma la console aspetta che il server sia pronto tramite retry interni.
+
+---
+
+## 5. Installazione fresh start
+
+Procedura completa dall'inizio, in ordine **rigoroso**:
+
+```bash
+# 1. Vai nella cartella
 cd /volume1/docker/betterdesk
+
+# 2. Crea struttura cartelle
+mkdir -p server console/appdata
+
+# 3. Imposta permessi PRIMA di avviare
+chown -R 10001:10001 server console
+chmod 755 server console console/appdata
+
+# 4. Verifica permessi
+ls -la
+
+# 5. Avvia i container
 docker compose up -d
+
+# 6. Attendi 15 secondi per l'inizializzazione
+sleep 15
+
+# 7. Verifica stato
+docker compose ps
+
+# 8. Controlla log avvio
+docker logs betterdesk-server --tail 20
+docker logs betterdesk-console --tail 20
 ```
 
-### 5. Verifica
+### Credenziali primo accesso
+
+Dopo il primo avvio, la console crea automaticamente l'utente admin.
+La password iniziale viene generata e mostrata nei log:
 
 ```bash
-sleep 40 && docker ps --filter name=betterdesk --format "table {{.Names}}\t{{.Status}}"
-curl -s http://localhost:21114/api/health
+docker logs betterdesk-console 2>&1 | grep -i "password\|admin\|init\|created"
+```
+
+> ⚠️ **Leggi sempre i log al primo avvio** — la password iniziale è mostrata UNA SOLA VOLTA.
+
+---
+
+## 6. Verifica post-avvio
+
+```bash
+# Stato container
+docker compose ps
+
+# Health check server
+curl -sf http://localhost:21114/api/health && echo "Server OK"
+
+# Verifica console raggiungibile
+curl -sf http://localhost:5000 -o /dev/null && echo "Console OK"
+
+# Verifica porta relay
+ss -tlnp | grep 21117
+
+# Verifica porte RustDesk
+ss -tlnp | grep -E '21114|21115|21116|21117|21118|21119'
+```
+
+### Stato atteso `docker compose ps`
+
+```
+NAME                   STATUS
+betterdesk-server      Up (healthy)
+betterdesk-console     Up
 ```
 
 ---
 
-## Configurazione DSM
+## 7. Struttura Database
 
-### Reverse Proxy (obbligatorio per HTTPS)
+> ⚠️ **BetterDesk usa DUE database SQLite separati.** Confonderli è la causa principale dei problemi di autenticazione.
 
-In DSM → Pannello di Controllo → Portale di accesso → Proxy inverso:
+### 7.1 `server/db_v2.sqlite3` — Database Server Go
 
-| Origine | Destinazione |
+Contiene dispositivi, peer, sessioni RustDesk.
+
+**Tabelle principali:**
+
+| Tabella | Contenuto |
 |---|---|
-| `https://betterdesk.tuodominio.it:443` | `http://localhost:5000` |
-| `https://install.tuodominio.it:443` | cartella statica o `http://localhost:PORT` |
+| `peer` | Dispositivi registrati (id, hostname, OS, IP) |
+| `group` | Gruppi di dispositivi |
+| `user` | Utenti lato server Go (hash PBKDF2-SHA256) |
+| `token` | Token di accesso API |
 
-### Port Forwarding Router
+**Schema tabella `user`:**
+```sql
+CREATE TABLE user (
+  guid TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  password TEXT,        -- hash PBKDF2-SHA256 formato: pbkdf2-sha256$iter$salt$hash
+  email TEXT,
+  note TEXT,
+  status INTEGER,
+  role INTEGER,
+  is_admin INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
 
-Aprire le seguenti porte verso l'IP interno del NAS:
+### 7.2 `console/auth.db` — Database Console Node.js
 
-| Porta | Protocollo | Servizio |
+Contiene utenti, sessioni, audit log della console web.
+
+**Tabelle complete:**
+
+| Tabella | Contenuto |
+|---|---|
+| `users` | Utenti console (username, password_hash bcrypt) |
+| `access_tokens` | Token sessione |
+| `login_attempts` | Tentativi di login (anti-brute-force) |
+| `account_lockouts` | Account bloccati |
+| `audit_log` | Log di tutte le azioni |
+| `audit_connections` | Log connessioni remote |
+| `audit_files` | Log trasferimenti file |
+| `audit_alarms` | Log allarmi |
+| `tickets` | Ticket di supporto |
+| `ticket_comments` | Commenti ai ticket |
+| `ticket_attachments` | Allegati ticket |
+| `alert_rules` | Regole di alerting |
+| `alert_history` | Storico alert |
+| `remote_commands` | Comandi remoti |
+| `folders` | Cartelle organizzazione dispositivi |
+| `address_books` | Rubrica |
+| `settings` | Impostazioni globali |
+| `branding_config` | Personalizzazione UI |
+| `relay_sessions` | Sessioni relay |
+| `device_folder_assignments` | Assegnazione dispositivi a cartelle |
+| `peer_sysinfo` | Info sistema dei peer |
+| `peer_metrics` | Metriche performance peer |
+| `user_groups` | Gruppi utenti |
+| `user_group_members` | Membri gruppi |
+| `device_groups` | Gruppi dispositivi |
+| `device_group_members` | Membri gruppi dispositivi |
+| `device_group_user_access` | Permessi utente su gruppi dispositivi |
+| `device_group_user_group_access` | Permessi gruppo utenti su gruppi dispositivi |
+| `strategies` | Strategie di accesso |
+
+**Schema tabella `users`:**
+```sql
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,   -- bcrypt $2b$10$...
+  email TEXT,
+  role TEXT DEFAULT 'admin',
+  is_active INTEGER DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  last_login DATETIME
+);
+```
+
+### 7.3 Formato hash
+
+| Database | Algoritmo | Formato |
 |---|---|---|
-| 21114 | TCP | API HTTP |
-| 21115 | TCP | NAT Test |
-| 21116 | TCP+UDP | Signal (HBBS) |
-| 21117 | TCP | Relay (HBBR) |
-| 21118 | TCP | WebSocket Signal |
-| 21119 | TCP | WebSocket Relay |
+| `db_v2.sqlite3` (server Go) | PBKDF2-SHA256 | `pbkdf2-sha256$600000$<salt>$<hash>` |
+| `auth.db` (console Node.js) | bcrypt | `$2b$10$<22char_salt><31char_hash>` |
+
+> ⚠️ **NON mescolare gli hash** — inserire un hash bcrypt in `db_v2.sqlite3` o PBKDF2 in `auth.db` causa `hash type: unknown` nei log.
+
+### 7.4 Generare hash bcrypt per auth.db
+
+```bash
+docker exec betterdesk-console node -e \
+  "const b=require('bcrypt'); b.hash(process.argv[1],10).then(h=>console.log(h))" \
+  -- 'LatuaPassword'
+```
+
+### 7.5 Aggiornare password admin in auth.db
+
+```bash
+# 1. Genera hash
+HASH=$(docker exec betterdesk-console node -e \
+  "const b=require('bcrypt'); b.hash(process.argv[1],10).then(h=>console.log(h))" \
+  -- 'LatuaPassword')
+
+# 2. Verifica hash generato
+echo $HASH
+
+# 3. Aggiorna DB
+docker exec betterdesk-console sqlite3 /appdata/auth.db \
+  "UPDATE users SET password_hash='$HASH' WHERE username='admin';"
+
+# 4. Verifica
+docker exec betterdesk-console sqlite3 /appdata/auth.db \
+  "SELECT username, password_hash FROM users WHERE username='admin';"
+```
 
 ---
 
-## 🗺️ Roadmap
+## 8. Reverse Proxy Synology
 
-### ✅ Completato
+Configurazione nel Pannello di Controllo DSM → Accesso Esterno → Proxy Inverso:
 
-- [x] Deploy BetterDesk su NAS arancio (`betterdesk.arancio.me`) — **funzionante**
-- [x] Deploy BetterDesk su MaGaServer1 (`betterdesk.maganet.it`) — container **healthy** ✅
-- [x] Container `betterdesk-server` e `betterdesk-console` entrambi `(healthy)` ✅
-- [x] Reverse proxy DSM + SSL wildcard `*.maganet.it` attivo
-- [x] Immagine v2.3.0 caricata (tar.gz da NAS arancio) — v3.0.0 alpha bypassata
-- [x] Documentazione troubleshooting (11 problemi risolti/documentati)
-- [x] Template generico con placeholder aggiornato
-- [x] Cartella `maganet/` con configurazione specifica
-- [x] Identificato DB di autenticazione corretto: `/appdata/auth.db` (non `db.sqlite3`)
+| Campo | Valore |
+|---|---|
+| Nome | betterdesk |
+| Protocollo sorgente | HTTPS |
+| Hostname sorgente | betterdesk.maganet.it |
+| Porta sorgente | 443 |
+| Protocollo destinazione | HTTP |
+| Hostname destinazione | localhost |
+| Porta destinazione | 5000 |
 
-### 🔴 PROBLEMA APERTO — Da risolvere (priorità massima)
-
-- [ ] **Accesso a `https://betterdesk.maganet.it`** — login admin non funziona
-  - La console usa `/appdata/auth.db` per l'autenticazione
-  - L'hash in `auth.db` deve essere **bcrypt** (non PBKDF2)
-  - Verificare le tabelle di `auth.db` e aggiornare con hash bcrypt corretto
-  - Vedi **Problema #11** in TROUBLESHOOTING.md per la diagnosi completa
-
-### 🔜 Da fare (in ordine, dopo risolto l'accesso)
-
-1. **Recupero chiave pubblica** — `cat /volume1/docker/betterdesk/server/id_ed25519.pub`
-2. **Aggiornare script client** in `maganet/client-install/` con la chiave pubblica reale
-3. **Pagina `install.maganet.it`** — configurare reverse proxy DSM e verificare accesso
-4. **Testare client RustDesk** — configurare un client con server `betterdesk.maganet.it`
-5. **Branding MaGa** — logo, titolo "MaGa Remote", palette giallo `#d4a017`, pagina login personalizzata
-6. **Agente remoto** su client arancio (mancante anche su arancio)
-7. **Valutare aggiornamento** a versione stabile quando disponibile (dopo v3.0.0-alpha)
-
-### 🔮 Futuro
-
-- [ ] Rendere pubblico il repository come template
-- [ ] Documentazione per altri provider (non solo Synology)
-- [ ] Automazione deploy via script
+**Header WebSocket** (tab Intestazioni personalizzate):
+```
+Upgrade: $http_upgrade
+Connection: $connection_upgrade
+```
 
 ---
 
-## Problemi Noti
+## 9. Porte utilizzate
 
-Vedi [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) per la lista completa.
+| Porta | Protocollo | Servizio | Note |
+|---|---|---|---|
+| 5000 | TCP | Console web | Accesso via reverse proxy |
+| 21114 | TCP | API server Go | Health check, API |
+| 21115 | TCP | RustDesk NAT test | |
+| 21116 | TCP/UDP | RustDesk HBBS | Registrazione ID |
+| 21117 | TCP | RustDesk HBBR | Relay |
+| 21118 | TCP | RustDesk WS | WebSocket HBBS |
+| 21119 | TCP | RustDesk WS | WebSocket HBBR |
+| 21122 | TCP | CDAP | Client Device Access Protocol |
 
-**Problemi principali:**
-- `permission denied` → `chmod 755` su `/server`, `chmod 777` su `/console/appdata`
-- Pallino arancione Portainer → aggiungere `healthcheck` esplicito nel compose (già incluso)
-- Password con `$` → usare `$$` nel compose
-- v3.0.0 bug login → usare immagine 2.3.0/2.4.0 esportata da arancio
-- **Login fallisce dopo reset manuale** → usare `/appdata/auth.db` (non `db.sqlite3`) e hash bcrypt
+> ⚠️ **Tutte le porte devono essere aperte** nel firewall Synology e nel router.
+
+### Verifica porte aperte
+
+```bash
+ss -tlnp | grep -E '5000|21114|21115|21116|21117|21118|21119|21122'
+```
+
+---
+
+## 10. Reset completo
+
+Quando si vuole ripartire da zero (installazione pulita):
+
+```bash
+# 1. Ferma e rimuovi container
+cd /volume1/docker/betterdesk
+docker compose down
+
+# 2. Cancella tutti i dati
+rm -rf /volume1/docker/betterdesk/server/*
+rm -rf /volume1/docker/betterdesk/server/.*  2>/dev/null || true
+rm -rf /volume1/docker/betterdesk/console/*
+rm -rf /volume1/docker/betterdesk/console/.* 2>/dev/null || true
+
+# 3. Verifica pulizia
+ls -la server/ && ls -la console/
+
+# 4. Ricrea struttura e permessi
+mkdir -p console/appdata
+chown -R 10001:10001 server console
+chmod 755 server console console/appdata
+
+# 5. Riavvia
+docker compose up -d
+
+# 6. Attendi inizializzazione e leggi log
+sleep 15
+docker logs betterdesk-console 2>&1 | grep -i "password\|admin\|init\|created"
+```
+
+---
+
+## 11. Roadmap
+
+| # | Attività | Stato |
+|---|---|---|
+| 1 | Installazione server e console | ✅ Completato |
+| 2 | Configurazione reverse proxy SSL | ✅ Completato |
+| 3 | Risoluzione problema login admin | 🔄 In corso |
+| 4 | Primo accesso e cambio password | ⏳ Pending |
+| 5 | Configurazione client RustDesk | ⏳ Pending |
+| 6 | Enrollment dispositivi MaGa | ⏳ Pending |
+| 7 | Configurazione gruppi e permessi | ⏳ Pending |
+| 8 | Test connessione remota completa | ⏳ Pending |
+| 9 | Backup automatico DB | ⏳ Pending |
+
+---
+
+*Ultimo aggiornamento: 2026-06-04 | Host: MaGaServer1 | NAS: DS925+*
