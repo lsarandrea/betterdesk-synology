@@ -16,8 +16,9 @@
 7. [Struttura Database](#7-struttura-database)
 8. [Reverse Proxy Synology](#8-reverse-proxy-synology)
 9. [Porte utilizzate](#9-porte-utilizzate)
-10. [Reset completo](#10-reset-completo)
-11. [Roadmap](#11-roadmap)
+10. [Immagini offline](#10-immagini-offline)
+11. [Reset completo](#11-reset-completo)
+12. [Roadmap](#12-roadmap)
 
 ---
 
@@ -183,31 +184,35 @@ services:
 Procedura completa dall'inizio, in ordine **rigoroso**:
 
 ```bash
-# 1. Vai nella cartella
+# 1. Crea cartella principale e struttura
+mkdir -p /volume1/docker/betterdesk/server
+mkdir -p /volume1/docker/betterdesk/console/appdata
+
+# 2. Copia docker-compose.yml nella cartella
 cd /volume1/docker/betterdesk
 
-# 2. Crea struttura cartelle
-mkdir -p server console/appdata
+# 3. Carica immagini (se offline) — vedi sezione 10
+# oppure verifica che siano già presenti:
+docker images | grep betterdesk
 
-# 3. Imposta permessi PRIMA di avviare
+# 4. Imposta permessi PRIMA di avviare
 chown -R 10001:10001 server console
 chmod 755 server console console/appdata
 
-# 4. Verifica permessi
-ls -la
+# 5. Verifica permessi
+ls -la server/ && ls -la console/
 
-# 5. Avvia i container
+# 6. Avvia i container
 docker compose up -d
 
-# 6. Attendi 15 secondi per l'inizializzazione
+# 7. Attendi 15 secondi per l'inizializzazione
 sleep 15
 
-# 7. Verifica stato
+# 8. Verifica stato
 docker compose ps
 
-# 8. Controlla log avvio
-docker logs betterdesk-server --tail 20
-docker logs betterdesk-console --tail 20
+# 9. Controlla log avvio e recupera password admin
+docker logs betterdesk-console 2>&1 | grep -i "password\|admin\|init\|created"
 ```
 
 ### Credenziali primo accesso
@@ -234,9 +239,6 @@ curl -sf http://localhost:21114/api/health && echo "Server OK"
 
 # Verifica console raggiungibile
 curl -sf http://localhost:5000 -o /dev/null && echo "Console OK"
-
-# Verifica porta relay
-ss -tlnp | grep 21117
 
 # Verifica porte RustDesk
 ss -tlnp | grep -E '21114|21115|21116|21117|21118|21119'
@@ -420,7 +422,45 @@ ss -tlnp | grep -E '5000|21114|21115|21116|21117|21118|21119|21122'
 
 ---
 
-## 10. Reset completo
+## 10. Immagini offline
+
+> ⚠️ **ATTENZIONE AL NOME DEL FILE:** Il file `betterdesk-images-2.4.0.tar.gz` presente in `/volume1/docker/` contiene in realtà le immagini della versione **2.3.0**, NON la 2.4.0. Il nome del file è fuorviante.
+
+### Immagini contenute nel tar.gz
+
+| Immagine | Versione reale |
+|---|---|
+| `ghcr.io/unitronix/betterdesk-server` | 2.3.0 |
+| `ghcr.io/unitronix/betterdesk-console` | 2.3.0 |
+
+### Caricamento immagini da file offline
+
+```bash
+# Carica le immagini nel Docker locale
+docker load -i /volume1/docker/betterdesk-images-2.4.0.tar.gz
+
+# Verifica immagini caricate
+docker images | grep betterdesk
+```
+
+### Verifica versione immagine caricata
+
+```bash
+docker inspect ghcr.io/unitronix/betterdesk-console:latest | grep -i version
+```
+
+### Quando usare il file offline vs pull da internet
+
+| Scenario | Metodo |
+|---|---|
+| NAS ha accesso a ghcr.io | `docker pull ghcr.io/unitronix/betterdesk-server:latest` |
+| NAS senza accesso a ghcr.io | `docker load -i /volume1/docker/betterdesk-images-2.4.0.tar.gz` |
+| Vuoi versione specifica (2.3.0) | Usa il file offline |
+| Vuoi versione più recente | Pull da internet |
+
+---
+
+## 11. Reset completo
 
 Quando si vuole ripartire da zero (installazione pulita):
 
@@ -429,43 +469,50 @@ Quando si vuole ripartire da zero (installazione pulita):
 cd /volume1/docker/betterdesk
 docker compose down
 
-# 2. Cancella tutti i dati
-rm -rf /volume1/docker/betterdesk/server/*
-rm -rf /volume1/docker/betterdesk/server/.*  2>/dev/null || true
-rm -rf /volume1/docker/betterdesk/console/*
-rm -rf /volume1/docker/betterdesk/console/.* 2>/dev/null || true
+# 2. Cancella TUTTA la cartella betterdesk
+cd /volume1/docker
+rm -rf betterdesk
 
 # 3. Verifica pulizia
-ls -la server/ && ls -la console/
+ls -la /volume1/docker/
 
-# 4. Ricrea struttura e permessi
-mkdir -p console/appdata
-chown -R 10001:10001 server console
-chmod 755 server console console/appdata
+# 4. Ricrea struttura da zero
+mkdir -p /volume1/docker/betterdesk/server
+mkdir -p /volume1/docker/betterdesk/console/appdata
 
-# 5. Riavvia
+# 5. Ricopia docker-compose.yml
+# (dal repository GitHub o manualmente)
+
+# 6. Imposta permessi
+chown -R 10001:10001 /volume1/docker/betterdesk/server
+chown -R 10001:10001 /volume1/docker/betterdesk/console
+chmod 755 /volume1/docker/betterdesk/console/appdata
+
+# 7. Riavvia
+cd /volume1/docker/betterdesk
 docker compose up -d
 
-# 6. Attendi inizializzazione e leggi log
+# 8. Attendi inizializzazione e leggi log
 sleep 15
 docker logs betterdesk-console 2>&1 | grep -i "password\|admin\|init\|created"
 ```
 
 ---
 
-## 11. Roadmap
+## 12. Roadmap
 
 | # | Attività | Stato |
 |---|---|---|
 | 1 | Installazione server e console | ✅ Completato |
 | 2 | Configurazione reverse proxy SSL | ✅ Completato |
-| 3 | Risoluzione problema login admin | 🔄 In corso |
-| 4 | Primo accesso e cambio password | ⏳ Pending |
-| 5 | Configurazione client RustDesk | ⏳ Pending |
-| 6 | Enrollment dispositivi MaGa | ⏳ Pending |
-| 7 | Configurazione gruppi e permessi | ⏳ Pending |
-| 8 | Test connessione remota completa | ⏳ Pending |
-| 9 | Backup automatico DB | ⏳ Pending |
+| 3 | Caricamento immagini v2.3.0 offline | ✅ Completato |
+| 4 | Risoluzione problema login admin | 🔄 In corso |
+| 5 | Primo accesso e cambio password | ⏳ Pending |
+| 6 | Configurazione client RustDesk | ⏳ Pending |
+| 7 | Enrollment dispositivi MaGa | ⏳ Pending |
+| 8 | Configurazione gruppi e permessi | ⏳ Pending |
+| 9 | Test connessione remota completa | ⏳ Pending |
+| 10 | Backup automatico DB | ⏳ Pending |
 
 ---
 
