@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MaGa — Installa RustDesk</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1c2128;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #d4a017;
+      --accent-hover: #e6b520;
+      --radius: 0.75rem;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 2.5rem;
+    }
+    .logo svg { width: 48px; height: 48px; }
+    .logo-text { font-size: 2rem; font-weight: 700; letter-spacing: -0.03em; }
+    .logo-text span { color: var(--accent); }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      width: 100%;
+      max-width: 520px;
+    }
+    h1 { font-size: 1.35rem; margin-bottom: 0.5rem; }
+    p.sub { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.75rem; }
+    .btns { display: flex; flex-direction: column; gap: 0.75rem; }
+    .btn {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.9rem 1.25rem;
+      border-radius: var(--radius);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: border-color 0.18s, background 0.18s;
+    }
+    .btn:hover { border-color: var(--accent); background: #1f2430; }
+    .btn .os-icon { font-size: 1.4rem; min-width: 2rem; text-align: center; }
+    .btn .os-label { flex: 1; }
+    .btn .badge {
+      background: var(--accent);
+      color: #000;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .info {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-top: 1.25rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+    .info strong { color: var(--text); }
+    .info .row { display: flex; gap: 0.5rem; margin-top: 0.4rem; align-items: baseline; }
+    .info .label { min-width: 80px; }
+    .info .val { font-family: 'SF Mono', 'Consolas', monospace; color: var(--accent); word-break: break-all; }
+    .footer { margin-top: 2rem; color: var(--text-muted); font-size: 0.78rem; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <div class="logo">
+    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="MaGa logo">
+      <rect width="48" height="48" rx="12" fill="#d4a017"/>
+      <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle"
+            font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
+            font-size="22" font-weight="800" fill="#000">MG</text>
+    </svg>
+    <div class="logo-text">Ma<span>Ga</span></div>
+  </div>
+
+  <div class="card">
+    <h1>Installazione Client RustDesk</h1>
+    <p class="sub">Scarica e configura il client per connetterti all'infrastruttura MaGa.</p>
+
+    <div class="btns">
+      <a href="install-rustdesk-windows.bat" class="btn">
+        <span class="os-icon">🪟</span>
+        <span class="os-label">Windows</span>
+        <span class="badge">.bat</span>
+      </a>
+      <a href="install-rustdesk-macos.sh" class="btn">
+        <span class="os-icon">🍎</span>
+        <span class="os-label">macOS</span>
+        <span class="badge">.sh</span>
+      </a>
+      <a href="install-rustdesk-linux.sh" class="btn">
+        <span class="os-icon">🐧</span>
+        <span class="os-label">Linux</span>
+        <span class="badge">.sh</span>
+      </a>
+    </div>
+
+    <div class="info">
+      <strong>Configurazione automatica:</strong>
+      <div class="row"><span class="label">Server:</span> <span class="val">betterdesk.maganet.it</span></div>
+      <div class="row"><span class="label">Chiave:</span> <span class="val">YOUR_PUBLIC_KEY</span></div>
+      <div class="row"><span class="label">API:</span> <span class="val">http://betterdesk.maganet.it:21121</span></div>
+    </div>
+  </div>
+
+  <div class="footer">MaGa IT — Supporto tecnico &middot; maganet.it</div>
+
+</body>
+</html>

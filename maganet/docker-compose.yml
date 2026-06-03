@@ -1,20 +1,12 @@
 # =============================================================================
-# BetterDesk + RustDesk — Template generico per Synology NAS
+# BetterDesk + RustDesk — Configurazione MaGa (MaGaServer1)
+# Host: betterdesk.maganet.it
+# Console: https://betterdesk.maganet.it  (reverse proxy → localhost:5000)
+# Pagina installazione client: https://install.maganet.it
+# Volume base: /volume1/docker/betterdesk/
 # =============================================================================
-# PRIMA DI AVVIARE: sostituisci tutti i placeholder con i tuoi valori reali.
-# Cerca e sostituisci le stringhe seguenti in questo file:
-#
-#   YOUR_DOMAIN          -> Il tuo dominio pubblico (es. betterdesk.miodominio.com)
-#   YOUR_PUBLIC_IP       -> IP pubblico del tuo router/server
-#   YOUR_ADMIN_PASSWORD  -> Password sicura per l'admin BetterDesk
-#   YOUR_NAS_VOLUME      -> Path del volume Synology (es. /volume1)
-#
-# NOTA: YOUR_PUBLIC_KEY non va modificato qui.
-# La chiave pubblica viene generata automaticamente al primo avvio del server
-# e si trova in: YOUR_NAS_VOLUME/docker/betterdesk/server/id_ed25519.pub
-# Usala poi per configurare i client RustDesk.
-#
-# Vedi anche: maganet/docker-compose.yml per esempio reale compilato (MaGa)
+# ATTENZIONE: questo file contiene dati specifici dell'ambiente MaGa.
+# NON usare questo file come template — usa ../docker-compose.yml
 # =============================================================================
 
 services:
@@ -31,12 +23,12 @@ services:
       - "-key-file"
       - "/opt/rustdesk/id_ed25519"
     volumes:
-      - YOUR_NAS_VOLUME/docker/betterdesk/server:/opt/rustdesk
+      - /volume1/docker/betterdesk/server:/opt/rustdesk
     environment:
       - ENCRYPTED_ONLY=1
       - DB_URL=/opt/rustdesk/db_v2.sqlite3
-      - RELAY_SERVERS=YOUR_DOMAIN:21117
-      - PUBLIC_IP=YOUR_PUBLIC_IP
+      - RELAY_SERVERS=betterdesk.maganet.it:21117
+      - PUBLIC_IP=217.198.140.12
     restart: unless-stopped
 
   console:
@@ -45,8 +37,8 @@ services:
     hostname: betterdesk-console
     network_mode: host
     volumes:
-      - YOUR_NAS_VOLUME/docker/betterdesk/server:/opt/rustdesk
-      - YOUR_NAS_VOLUME/docker/betterdesk/console:/app/data
+      - /volume1/docker/betterdesk/server:/opt/rustdesk
+      - /volume1/docker/betterdesk/console:/app/data
     environment:
       - NODE_ENV=production
       - PORT=5000
@@ -69,6 +61,6 @@ services:
       - CDAP_URL=ws://localhost:21122/cdap
       - DOCKER=true
       - INIT_ADMIN_USER=admin
-      - INIT_ADMIN_PASS=YOUR_ADMIN_PASSWORD
+      - INIT_ADMIN_PASS=$Maga2026$
       - NODE_OPTIONS=--dns-result-order=ipv4first
     restart: unless-stopped
