@@ -18,7 +18,8 @@
 9. [Porte utilizzate](#9-porte-utilizzate)
 10. [Immagini offline](#10-immagini-offline)
 11. [Reset completo](#11-reset-completo)
-12. [Roadmap](#12-roadmap)
+12. [Installazione client Windows](#12-installazione-client-windows)
+13. [Roadmap](#13-roadmap)
 
 ---
 
@@ -290,40 +291,6 @@ CREATE TABLE user (
 
 Contiene utenti, sessioni, audit log della console web.
 
-**Tabelle complete:**
-
-| Tabella | Contenuto |
-|---|---|
-| `users` | Utenti console (username, password_hash bcrypt) |
-| `access_tokens` | Token sessione |
-| `login_attempts` | Tentativi di login (anti-brute-force) |
-| `account_lockouts` | Account bloccati |
-| `audit_log` | Log di tutte le azioni |
-| `audit_connections` | Log connessioni remote |
-| `audit_files` | Log trasferimenti file |
-| `audit_alarms` | Log allarmi |
-| `tickets` | Ticket di supporto |
-| `ticket_comments` | Commenti ai ticket |
-| `ticket_attachments` | Allegati ticket |
-| `alert_rules` | Regole di alerting |
-| `alert_history` | Storico alert |
-| `remote_commands` | Comandi remoti |
-| `folders` | Cartelle organizzazione dispositivi |
-| `address_books` | Rubrica |
-| `settings` | Impostazioni globali |
-| `branding_config` | Personalizzazione UI |
-| `relay_sessions` | Sessioni relay |
-| `device_folder_assignments` | Assegnazione dispositivi a cartelle |
-| `peer_sysinfo` | Info sistema dei peer |
-| `peer_metrics` | Metriche performance peer |
-| `user_groups` | Gruppi utenti |
-| `user_group_members` | Membri gruppi |
-| `device_groups` | Gruppi dispositivi |
-| `device_group_members` | Membri gruppi dispositivi |
-| `device_group_user_access` | Permessi utente su gruppi dispositivi |
-| `device_group_user_group_access` | Permessi gruppo utenti su gruppi dispositivi |
-| `strategies` | Strategie di accesso |
-
 **Schema tabella `users`:**
 ```sql
 CREATE TABLE users (
@@ -426,43 +393,16 @@ ss -tlnp | grep -E '5000|21114|21115|21116|21117|21118|21119|21122'
 
 > ⚠️ **ATTENZIONE AL NOME DEL FILE:** Il file `betterdesk-images-2.4.0.tar.gz` presente in `/volume1/docker/` contiene in realtà le immagini della versione **2.3.0**, NON la 2.4.0. Il nome del file è fuorviante.
 
-### Immagini contenute nel tar.gz
-
-| Immagine | Versione reale |
-|---|---|
-| `ghcr.io/unitronix/betterdesk-server` | 2.3.0 |
-| `ghcr.io/unitronix/betterdesk-console` | 2.3.0 |
-
 ### Caricamento immagini da file offline
 
 ```bash
-# Carica le immagini nel Docker locale
 docker load -i /volume1/docker/betterdesk-images-2.4.0.tar.gz
-
-# Verifica immagini caricate
 docker images | grep betterdesk
 ```
-
-### Verifica versione immagine caricata
-
-```bash
-docker inspect ghcr.io/unitronix/betterdesk-console:latest | grep -i version
-```
-
-### Quando usare il file offline vs pull da internet
-
-| Scenario | Metodo |
-|---|---|
-| NAS ha accesso a ghcr.io | `docker pull ghcr.io/unitronix/betterdesk-server:latest` |
-| NAS senza accesso a ghcr.io | `docker load -i /volume1/docker/betterdesk-images-2.4.0.tar.gz` |
-| Vuoi versione specifica (2.3.0) | Usa il file offline |
-| Vuoi versione più recente | Pull da internet |
 
 ---
 
 ## 11. Reset completo
-
-Quando si vuole ripartire da zero (installazione pulita):
 
 ```bash
 # 1. Ferma e rimuovi container
@@ -473,46 +413,93 @@ docker compose down
 cd /volume1/docker
 rm -rf betterdesk
 
-# 3. Verifica pulizia
-ls -la /volume1/docker/
-
-# 4. Ricrea struttura da zero
+# 3. Ricrea struttura da zero
 mkdir -p /volume1/docker/betterdesk/server
 mkdir -p /volume1/docker/betterdesk/console/appdata
 
-# 5. Ricopia docker-compose.yml
-# (dal repository GitHub o manualmente)
-
-# 6. Imposta permessi
+# 4. Imposta permessi
 chown -R 10001:10001 /volume1/docker/betterdesk/server
 chown -R 10001:10001 /volume1/docker/betterdesk/console
 chmod 755 /volume1/docker/betterdesk/console/appdata
 
-# 7. Riavvia
+# 5. Riavvia
 cd /volume1/docker/betterdesk
 docker compose up -d
 
-# 8. Attendi inizializzazione e leggi log
+# 6. Attendi inizializzazione e leggi log
 sleep 15
 docker logs betterdesk-console 2>&1 | grep -i "password\|admin\|init\|created"
 ```
 
 ---
 
-## 12. Roadmap
+## 12. Installazione client Windows
+
+### Script di installazione: `install-rustdesk-windows.bat`
+
+Disponibile su: **http://install.maganet.it/install-rustdesk-windows.bat**
+
+Eseguire come **Amministratore**.
+
+### Parametri preconfigurati
+
+| Parametro | Valore |
+|---|---|
+| Server | `betterdesk.maganet.it` |
+| Chiave pubblica | `w647yKhUkY49QHb/UxomU8oq0ZEf+nVF5+TiNlqHQFg=` |
+| API | `http://betterdesk.maganet.it:21121` |
+| Password permanente | `MaGa2026` |
+
+### Percorsi di configurazione sovrascritta
+
+Lo script sovrascrive la configurazione RustDesk in **tutti i percorsi possibili**, necessario per garantire la sovrascrittura anche in caso di installazioni precedenti (es. configurate su altri server):
+
+| Percorso | Quando è attivo |
+|---|---|
+| `%ProgramData%\RustDesk\config\` | Installazione standard (più comune) |
+| `%SystemRoot%\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\` | Servizio gira come LocalService |
+| `%SystemRoot%\System32\config\systemprofile\AppData\Roaming\RustDesk\config\` | Servizio gira come LocalSystem |
+| `%APPDATA%\RustDesk\config\` | Sessione utente interattiva |
+
+> ⚠️ **Problema noto:** RustDesk installato come servizio Windows usa il profilo di `LocalService` o `LocalSystem` per la configurazione, non `%APPDATA%` dell'utente che ha eseguito l'installazione. Se uno script scrive solo in `%APPDATA%` i parametri vengono ignorati dal servizio.
+
+### Flusso dello script
+
+1. Download ultima versione RustDesk da GitHub Releases
+2. Stop servizio + kill processo (anche installazione precedente)
+3. Installazione silenziosa (`--silent-install`)
+4. Stop servizio post-installazione (prima di scrivere config)
+5. Scrittura `RustDesk.toml` e `RustDesk2.toml` in tutti e 4 i percorsi
+6. Impostazione password permanente via PowerShell
+7. Avvio servizio con nuova configurazione
+
+### Verifica dopo installazione
+
+```powershell
+# Verifica che la config attiva punti al server corretto
+Get-Content "$env:SystemRoot\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\RustDesk2.toml"
+
+# Verifica stato servizio
+sc.exe query RustDesk
+```
+
+---
+
+## 13. Roadmap
 
 | # | Attività | Stato |
 |---|---|---|
 | 1 | Installazione server e console | ✅ Completato |
 | 2 | Configurazione reverse proxy SSL | ✅ Completato |
 | 3 | Caricamento immagini v2.3.0 offline | ✅ Completato |
-| 4 | Risoluzione problema login admin | 🔄 In corso |
-| 5 | Primo accesso e cambio password | ⏳ Pending |
-| 6 | Configurazione client RustDesk | ⏳ Pending |
-| 7 | Enrollment dispositivi MaGa | ⏳ Pending |
-| 8 | Configurazione gruppi e permessi | ⏳ Pending |
-| 9 | Test connessione remota completa | ⏳ Pending |
-| 10 | Backup automatico DB | ⏳ Pending |
+| 4 | Risoluzione problema login admin | ✅ Completato |
+| 5 | Primo accesso e cambio password | ✅ Completato |
+| 6 | Script installazione client Windows | ✅ Completato |
+| 7 | Sovrascrittura config su installazioni precedenti Windows | ✅ Completato |
+| 8 | Enrollment dispositivi MaGa | 🔄 In corso |
+| 9 | Configurazione gruppi e permessi | ⏳ Pending |
+| 10 | Test connessione remota completa | ⏳ Pending |
+| 11 | Backup automatico DB | ⏳ Pending |
 
 ---
 
