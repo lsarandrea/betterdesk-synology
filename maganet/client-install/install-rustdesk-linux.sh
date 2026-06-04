@@ -29,9 +29,26 @@ elif command -v dnf &>/dev/null; then
 fi
 
 echo "[3/4] Configurazione server MaGa..."
+# Termina rustdesk se in esecuzione (installazione nuova o cambio server)
+pkill -x rustdesk 2>/dev/null
+sleep 2
+
 CONFIG_DIR="$HOME/.config/rustdesk"
 mkdir -p "$CONFIG_DIR"
+
+# RustDesk.toml - configurazione generale
 cat > "$CONFIG_DIR/RustDesk.toml" <<EOF
+rendezvous_server = '$SERVER'
+nat_type = 1
+[options]
+custom-rendezvous-server = '$SERVER'
+key = '$PUBKEY'
+api-server = '$API'
+relay-server = '$SERVER'
+EOF
+
+# RustDesk2.toml - parametri server che prevalgono sul toml principale
+cat > "$CONFIG_DIR/RustDesk2.toml" <<EOF
 rendezvous_server = '$SERVER'
 nat_type = 1
 [options]

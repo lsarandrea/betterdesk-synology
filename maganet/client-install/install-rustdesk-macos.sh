@@ -21,9 +21,27 @@ cp -R /Volumes/RustDesk/RustDesk.app /Applications/ 2>/dev/null || true
 hdiutil detach /Volumes/RustDesk -quiet 2>/dev/null || true
 
 echo "[3/4] Configurazione server MaGa..."
-CONFIG_DIR="$HOME/Library/Preferences/com.carriez.rustdesk"
+# Termina RustDesk se in esecuzione (installazione nuova o cambio server)
+pkill -x RustDesk 2>/dev/null
+sleep 2
+
+# Su macOS i config risiedono in ~/.config/rustdesk (non in Library/Preferences)
+CONFIG_DIR="$HOME/.config/rustdesk"
 mkdir -p "$CONFIG_DIR"
+
+# RustDesk.toml - configurazione generale
 cat > "$CONFIG_DIR/RustDesk.toml" <<EOF
+rendezvous_server = '$SERVER'
+nat_type = 1
+[options]
+custom-rendezvous-server = '$SERVER'
+key = '$PUBKEY'
+api-server = '$API'
+relay-server = '$SERVER'
+EOF
+
+# RustDesk2.toml - parametri server che prevalgono sul toml principale
+cat > "$CONFIG_DIR/RustDesk2.toml" <<EOF
 rendezvous_server = '$SERVER'
 nat_type = 1
 [options]

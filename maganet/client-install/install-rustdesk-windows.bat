@@ -14,8 +14,14 @@ echo [2/4] Installazione silenziosa...
 timeout /t 5 /nobreak >nul
 
 echo [3/4] Configurazione server MaGa...
+rem Termina RustDesk se in esecuzione (installazione nuova o aggiornamento)
+taskkill /F /IM RustDesk.exe 2>nul
+timeout /t 2 /nobreak >nul
+
 set CONFIG_DIR=%APPDATA%\RustDesk\config
 mkdir "%CONFIG_DIR%" 2>nul
+
+rem RustDesk.toml - configurazione generale
 (
 echo rendezvous_server = '%SERVER%'
 echo nat_type = 1
@@ -25,6 +31,17 @@ echo key = '%PUBKEY%'
 echo api-server = '%API%'
 echo relay-server = '%SERVER%'
 ) > "%CONFIG_DIR%\RustDesk.toml"
+
+rem RustDesk2.toml - parametri server che prevalgono sul toml principale
+(
+echo rendezvous_server = '%SERVER%'
+echo nat_type = 1
+echo [options]
+echo custom-rendezvous-server = '%SERVER%'
+echo key = '%PUBKEY%'
+echo api-server = '%API%'
+echo relay-server = '%SERVER%'
+) > "%CONFIG_DIR%\RustDesk2.toml"
 
 echo [4/4] Completato!
 echo  Server: %SERVER%
