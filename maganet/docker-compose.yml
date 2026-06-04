@@ -9,6 +9,9 @@
 #   chown -R root:root /volume1/docker/betterdesk/server
 #   chmod -R 755 /volume1/docker/betterdesk/server
 #   chmod -R 777 /volume1/docker/betterdesk/console/appdata
+#   chmod 644 /volume1/docker/betterdesk/docker-compose.yml
+#   NOTA: curl scarica il file con permessi 555 (sola lettura). Il chmod 644 è necessario
+#         per permettere future modifiche al file senza usare sudo/root forzato.
 
 services:
   server:
