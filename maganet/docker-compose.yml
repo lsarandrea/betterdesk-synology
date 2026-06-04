@@ -2,7 +2,6 @@
 # Dominio: betterdesk.maganet.it
 # Console: https://betterdesk.maganet.it (via reverse proxy Synology → porta 5000)
 # Install page: https://install.maganet.it
-# Versione immagine: 2.4.0 (la 3.0.0 ha bug syncUserFromGo — NON usare :latest)
 #
 # PRIMA DI AVVIARE:
 #   mkdir -p /volume1/docker/betterdesk/server /volume1/docker/betterdesk/console/appdata
@@ -13,14 +12,17 @@
 #   NOTA: curl scarica il file con permessi 555 (sola lettura). Il chmod 644 è necessario
 #         per permettere future modifiche al file senza usare sudo/root forzato.
 #
-# NOTA INIT_ADMIN_PASS:
-#   - NON inserire password con caratteri speciali (es. $) in INIT_ADMIN_PASS.
-#     Il compose le processa/hasha in modo imprevedibile e genera una password diversa.
-#   - Lasciare INIT_ADMIN_PASS=changeme (valore semplice senza simboli).
-#   - Al primo avvio BetterDesk crea il file /opt/rustdesk/.admin_credentials con
-#     la password effettivamente impostata. Leggerla, fare login, cambiarla dalla GUI,
-#     poi eliminare il file con: rm /volume1/docker/betterdesk/server/.admin_credentials
-#   - Se il DB esiste già, INIT_ADMIN_PASS viene completamente ignorata.
+# PRIMO AVVIO — credenziali admin:
+#   BetterDesk genera automaticamente la password admin e la scrive in:
+#     /volume1/docker/betterdesk/server/.admin_credentials
+#   Procedura:
+#     1. cat /volume1/docker/betterdesk/server/.admin_credentials  → leggi username e password
+#     2. Accedi alla console web con quelle credenziali
+#     3. Cambia la password dalla GUI (Impostazioni profilo)
+#     4. rm /volume1/docker/betterdesk/server/.admin_credentials  → elimina il file
+#   NOTA: INIT_ADMIN_PASS è stato rimosso perché BetterDesk ignora o processa
+#         in modo imprevedibile le password con caratteri speciali ($, !, ecc.).
+#         La password generata automaticamente è sempre quella corretta da usare.
 
 services:
   server:
@@ -82,12 +84,6 @@ services:
       - CDAP_URL=ws://localhost:21122/cdap
       - DOCKER=true
       - INIT_ADMIN_USER=admin
-      # ⚠️  NON usare password con caratteri speciali ($, !, ecc.) qui.
-      # BetterDesk le processa in modo imprevedibile generando una password diversa.
-      # Usare un valore semplice, poi cambiare la password dalla GUI dopo il primo login.
-      # La password reale impostata al primo avvio si trova in:
-      #   /opt/rustdesk/.admin_credentials  (eliminare dopo aver fatto login)
-      - INIT_ADMIN_PASS=changeme
       # FIX: forza Node.js a usare IPv4 → risolve ECONNREFUSED su localhost:21114
       - NODE_OPTIONS=--dns-result-order=ipv4first
     restart: unless-stopped
