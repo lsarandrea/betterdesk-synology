@@ -1,15 +1,15 @@
 @echo off
 setlocal
 
-set "SERVER=betterdesk.maganet.it"
-set "PUBKEY=w647yKhUkY49QHb/UxomU8oq0ZEf+nVF5+TiNlqHQFg="
-set "API=http://betterdesk.maganet.it:21114"
-set "PERMANENT_PWD=MaGa2026"
-set "BDAGENT_SERVER=wss://betterdesk.maganet.it/cdap"
-set "BDAGENT_API_KEY=2d9f4cc4edc4f4d4c169b4ea638a4832e2c9b7d387b73e9b10d54cf3faa73fc0"
+set "SERVER=betterdesk.tuodominio.it"
+set "PUBKEY=LA_TUA_CHIAVE_PUBBLICA="
+set "API=http://betterdesk.tuodominio.it:21114"
+set "PERMANENT_PWD=LatuaPasswordPermanente"
+set "BDAGENT_SERVER=wss://betterdesk.tuodominio.it/cdap"
+set "BDAGENT_API_KEY=LA_TUA_API_KEY"
 set "BDAGENT_DIR=C:\ProgramData\BetterDesk"
 set "SERVICE_NAME=BetterDeskAgent"
-set "LOGFILE=%TEMP%\maga-install.log"
+set "LOGFILE=C:\maga-install.log"
 
 echo [MaGa] Installazione avviata %DATE% %TIME% > "%LOGFILE%"
 echo ============================================
@@ -66,12 +66,12 @@ REM ================================================
 echo.
 echo [5/8] Download ultima versione RustDesk...
 echo [5/8] Download RustDesk >> "%LOGFILE%"
-powershell -NoProfile -Command "$url=(Invoke-RestMethod 'https://api.github.com/repos/rustdesk/rustdesk/releases/latest').assets | Where-Object{$_.name -like '*-x86_64.exe'} | Select-Object -First 1 -ExpandProperty browser_download_url; Invoke-WebRequest -Uri $url -OutFile '%TEMP%\rustdesk.exe' -UseBasicParsing" >> "%LOGFILE%" 2>&1
+powershell -NoProfile -Command "$url=(Invoke-RestMethod 'https://api.github.com/repos/rustdesk/rustdesk/releases/latest').assets | Where-Object{$_.name -like '*-x86_64.exe'} | Select-Object -First 1 -ExpandProperty browser_download_url; Invoke-WebRequest -Uri $url -OutFile 'C:\rustdesk.exe' -UseBasicParsing" >> "%LOGFILE%" 2>&1
 if errorlevel 1 ( echo ERRORE [5/8] download RustDesk >> "%LOGFILE%" & goto :error )
 
 echo [6/8] Installazione silenziosa RustDesk...
 echo [6/8] Installazione RustDesk >> "%LOGFILE%"
-"%TEMP%\rustdesk.exe" --silent-install >> "%LOGFILE%" 2>&1
+"C:\rustdesk.exe" --silent-install >> "%LOGFILE%" 2>&1
 timeout /t 10 /nobreak >nul
 
 REM Stop immediato post-install prima di scrivere config
@@ -116,13 +116,13 @@ mkdir "%BDAGENT_DIR%" 2>nul
 mkdir "%BDAGENT_DIR%\data" 2>nul
 
 echo   Download NSSM...
-powershell -NoProfile -Command "Invoke-WebRequest -Uri 'https://nssm.cc/release/nssm-2.24.zip' -OutFile '%TEMP%\nssm.zip' -UseBasicParsing" >> "%LOGFILE%" 2>&1
+powershell -NoProfile -Command "Invoke-WebRequest -Uri 'https://nssm.cc/release/nssm-2.24.zip' -OutFile 'C:\nssm.zip' -UseBasicParsing" >> "%LOGFILE%" 2>&1
 if errorlevel 1 ( echo ERRORE download NSSM >> "%LOGFILE%" & goto :error )
 
-powershell -NoProfile -Command "Expand-Archive -Path '%TEMP%\nssm.zip' -DestinationPath '%TEMP%\nssm' -Force" >> "%LOGFILE%" 2>&1
+powershell -NoProfile -Command "Expand-Archive -Path 'C:\nssm.zip' -DestinationPath 'C:\nssm' -Force" >> "%LOGFILE%" 2>&1
 if errorlevel 1 ( echo ERRORE estrazione NSSM >> "%LOGFILE%" & goto :error )
 
-powershell -NoProfile -Command "$f=Get-ChildItem '%TEMP%\nssm' -Recurse -Filter 'nssm.exe' | Where-Object{$_.Directory -match 'win64'} | Select-Object -First 1; if($f){Copy-Item $f.FullName '%BDAGENT_DIR%\nssm.exe'}else{exit 1}" >> "%LOGFILE%" 2>&1
+powershell -NoProfile -Command "$f=Get-ChildItem 'C:\nssm' -Recurse -Filter 'nssm.exe' | Where-Object{$_.Directory -match 'win64'} | Select-Object -First 1; if($f){Copy-Item $f.FullName '%BDAGENT_DIR%\nssm.exe'}else{exit 1}" >> "%LOGFILE%" 2>&1
 if errorlevel 1 ( echo ERRORE copia nssm.exe >> "%LOGFILE%" & goto :error )
 
 echo   Download betterdesk-agent.exe...
