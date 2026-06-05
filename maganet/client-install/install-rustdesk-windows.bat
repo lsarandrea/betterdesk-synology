@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 set SERVER=betterdesk.maganet.it
 set PUBKEY=w647yKhUkY49QHb/UxomU8oq0ZEf+nVF5+TiNlqHQFg=
 set API=http://betterdesk.maganet.it:21121
@@ -18,37 +19,52 @@ echo  [MaGa] Installazione RustDesk + Agente
 echo ============================================
 echo.
 
-echo [1/8] Download ultima versione RustDesk... >> "%LOGFILE%"
-echo [1/8] Download ultima versione RustDesk...
+echo [1/9] Download ultima versione RustDesk... >> "%LOGFILE%"
+echo [1/9] Download ultima versione RustDesk...
 powershell -Command "$url = (Invoke-RestMethod 'https://api.github.com/repos/rustdesk/rustdesk/releases/latest').assets | Where-Object { $_.name -like '*-x86_64.exe' } | Select-Object -First 1 -ExpandProperty browser_download_url; Invoke-WebRequest -Uri $url -OutFile 'C:\rustdesk-setup.exe' -UseBasicParsing" >> "%LOGFILE%" 2>&1
 if errorlevel 1 ( echo ERRORE download RustDesk >> "%LOGFILE%" & goto :error )
 echo   OK download RustDesk >> "%LOGFILE%"
 
-echo [2/8] Stop aggressivo di tutti i processi RustDesk... >> "%LOGFILE%"
-echo [2/8] Stop aggressivo di tutti i processi RustDesk...
+echo [2/9] Stop aggressivo + rimozione servizio RustDesk esistente... >> "%LOGFILE%"
+echo [2/9] Stop aggressivo + rimozione servizio RustDesk esistente...
 sc stop RustDesk >> "%LOGFILE%" 2>&1
+sc stop "RustDesk" >> "%LOGFILE%" 2>&1
 taskkill /F /IM RustDesk.exe >> "%LOGFILE%" 2>&1
 taskkill /F /IM rustdesk.exe >> "%LOGFILE%" 2>&1
 powershell -Command "Get-Process -Name '*rustdesk*' -ErrorAction SilentlyContinue | Stop-Process -Force" >> "%LOGFILE%" 2>&1
 timeout /t 5 /nobreak >nul
-echo   Attesa completata >> "%LOGFILE%"
 
-echo [3/8] Installazione silenziosa RustDesk... >> "%LOGFILE%"
-echo [3/8] Installazione silenziosa RustDesk...
+REM — RIMOZIONE FORZATA config precedente (cuore del fix problema 1)
+echo   Rimozione configurazione precedente RustDesk... >> "%LOGFILE%"
+for %%D in (
+  "C:\ProgramData\RustDesk\config"
+  "C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config"
+  "C:\Windows\System32\config\systemprofile\AppData\Roaming\RustDesk\config"
+  "C:\Users\Public\RustDesk\config"
+) do (
+  if exist "%%~D\RustDesk.toml"  del /F /Q "%%~D\RustDesk.toml"  >> "%LOGFILE%" 2>&1
+  if exist "%%~D\RustDesk2.toml" del /F /Q "%%~D\RustDesk2.toml" >> "%LOGFILE%" 2>&1
+  echo   Pulito: %%~D >> "%LOGFILE%"
+)
+echo   Config precedente rimossa >> "%LOGFILE%"
+
+echo [3/9] Installazione silenziosa RustDesk... >> "%LOGFILE%"
+echo [3/9] Installazione silenziosa RustDesk...
 "C:\rustdesk-setup.exe" --silent-install
-timeout /t 12 /nobreak >nul
+REM — Attesa estesa: il servizio RustDesk si avvia e tenta di creare i .toml
+timeout /t 15 /nobreak >nul
 echo   OK installazione RustDesk >> "%LOGFILE%"
 
-echo [4/8] Stop post-installazione... >> "%LOGFILE%"
-echo [4/8] Stop servizio post-installazione...
+echo [4/9] Stop post-installazione (prima di scrivere config)... >> "%LOGFILE%"
+echo [4/9] Stop post-installazione...
 sc stop RustDesk >> "%LOGFILE%" 2>&1
 taskkill /F /IM RustDesk.exe >> "%LOGFILE%" 2>&1
 taskkill /F /IM rustdesk.exe >> "%LOGFILE%" 2>&1
 powershell -Command "Get-Process -Name '*rustdesk*' -ErrorAction SilentlyContinue | Stop-Process -Force" >> "%LOGFILE%" 2>&1
 timeout /t 5 /nobreak >nul
 
-echo [5/8] Configurazione server MaGa... >> "%LOGFILE%"
-echo [5/8] Configurazione server MaGa (tutti i percorsi)...
+echo [5/9] Configurazione server MaGa (tutti i percorsi)... >> "%LOGFILE%"
+echo [5/9] Configurazione server MaGa...
 
 set CONFIGDIR1=C:\ProgramData\RustDesk\config
 set CONFIGDIR2=C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config
@@ -74,15 +90,14 @@ for %%D in ("%CONFIGDIR1%" "%CONFIGDIR2%" "%CONFIGDIR3%" "%CONFIGDIR4%") do (
   echo   Scritto: %%~D >> "%LOGFILE%"
 )
 
-echo [6/8] Avvio RustDesk... >> "%LOGFILE%"
-echo [6/8] Avvio RustDesk con nuova configurazione...
+echo [6/9] Avvio RustDesk con nuova configurazione... >> "%LOGFILE%"
+echo [6/9] Avvio RustDesk...
 sc start RustDesk >> "%LOGFILE%" 2>&1
 timeout /t 3 /nobreak >nul
-echo   Stato servizio RustDesk: >> "%LOGFILE%"
 sc query RustDesk >> "%LOGFILE%" 2>&1
 
-echo [7/8] Installazione BetterDesk Agent... >> "%LOGFILE%"
-echo [7/8] Installazione BetterDesk Agent...
+echo [7/9] Installazione BetterDesk Agent... >> "%LOGFILE%"
+echo [7/9] Installazione BetterDesk Agent...
 
 mkdir "%BDAGENT_DIR%" 2>nul
 mkdir "%BDAGENT_DIR%\data" 2>nul
@@ -104,7 +119,9 @@ powershell -Command "Invoke-WebRequest -Uri 'https://github.com/UNITRONIX/Better
 if errorlevel 1 ( echo ERRORE download betterdesk-agent.exe >> "%LOGFILE%" & goto :error )
 echo   OK download agente >> "%LOGFILE%"
 
-echo   Scrittura config agente... >> "%LOGFILE%"
+echo [8/9] Scrittura config agente + installazione servizio... >> "%LOGFILE%"
+echo [8/9] Scrittura config agente + installazione servizio...
+
 (
 echo {
 echo   "server": "%BDAGENT_SERVER%",
@@ -121,10 +138,10 @@ echo   "log_level": "info",
 echo   "data_dir": "%BDAGENT_DIR%\data"
 echo }
 ) > "%BDAGENT_DIR%\config.json"
-echo   Config agente scritta: >> "%LOGFILE%"
+echo   Config agente scritta >> "%LOGFILE%"
 type "%BDAGENT_DIR%\config.json" >> "%LOGFILE%"
 
-echo   Rimozione servizio precedente... >> "%LOGFILE%"
+REM — Rimozione servizio agente precedente (se esiste)
 sc stop %SERVICE_NAME% >> "%LOGFILE%" 2>&1
 "%BDAGENT_DIR%\nssm.exe" remove %SERVICE_NAME% confirm >> "%LOGFILE%" 2>&1
 
@@ -135,15 +152,11 @@ if errorlevel 1 ( echo ERRORE install servizio NSSM >> "%LOGFILE%" & goto :error
 "%BDAGENT_DIR%\nssm.exe" set %SERVICE_NAME% Start SERVICE_AUTO_START >> "%LOGFILE%" 2>&1
 "%BDAGENT_DIR%\nssm.exe" set %SERVICE_NAME% DisplayName "BetterDesk Agent" >> "%LOGFILE%" 2>&1
 
-echo   Avvio servizio agente... >> "%LOGFILE%"
 sc start %SERVICE_NAME% >> "%LOGFILE%" 2>&1
 timeout /t 3 /nobreak >nul
-echo   Stato servizio agente: >> "%LOGFILE%"
 sc query %SERVICE_NAME% >> "%LOGFILE%" 2>&1
 
-if errorlevel 1 ( echo ERRORE avvio servizio %SERVICE_NAME% >> "%LOGFILE%" & goto :error )
-
-echo [8/8] Avvio interfaccia RustDesk...
+echo [9/9] Avvio interfaccia RustDesk...
 start "" "%ProgramFiles%\RustDesk\RustDesk.exe" 2>nul
 
 echo.
