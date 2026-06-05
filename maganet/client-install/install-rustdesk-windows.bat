@@ -2,14 +2,16 @@
 setlocal
 
 REM ================================================
-REM  CONFIGURAZIONE MaGa — VALORI PREIMPOSTATI
+REM  CONFIGURAZIONE — DA NON MODIFICARE
+REM  I valori reali sono preimpostati sul file
+REM  scaricabile da install.maganet.it
 REM ================================================
-set "SERVER=betterdesk.maganet.it"
-set "PUBKEY=w647yKhUkY49QHbUxomU8oq0ZEfnVF5TiNlqHQFg"
-set "API=http://betterdesk.maganet.it:21121"
-set "PERMANENT_PWD=Mg2026Rsk"
-set "BDAGENT_SERVER=wss://betterdesk.maganet.it/cdap"
-set "BDAGENT_API_KEY=2d9f4cc4edc4f4d4c169b4ea638a4832e2c9b7d387b73e9b10d54cf3faa73fc0"
+set "SERVER=betterdesk.tuodominio.it"
+set "PUBKEY=LA_TUA_CHIAVE_PUBBLICA="
+set "API=http://betterdesk.tuodominio.it:21121"
+set "PERMANENT_PWD=LatuaPasswordPermanente"
+set "BDAGENT_SERVER=wss://betterdesk.tuodominio.it/cdap"
+set "BDAGENT_API_KEY=LA_TUA_API_KEY"
 set "BDAGENT_DIR=C:\ProgramData\BetterDesk"
 set "SERVICE_NAME=BetterDeskAgent"
 set "LOGFILE=C:\maga-install.log"
