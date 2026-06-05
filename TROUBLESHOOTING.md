@@ -17,6 +17,8 @@
 9. [Grep con --include non funziona su BusyBox](#9-grep-con---include-non-funziona-su-busybox)
 10. [Container healthy ma login impossibile](#10-container-healthy-ma-login-impossibile)
 11. [Reset password con variabile d'ambiente e $ nel valore](#11-reset-password-con-variabile-dambiente-e--nel-valore)
+12. [Script Windows — config RustDesk precedente non rimossa](#12-script-windows--config-rustdesk-precedente-non-rimossa)
+13. [Password admin console web si resetta ad ogni riavvio](#13-password-admin-console-web-si-resetta-ad-ogni-riavvio)
 
 ---
 
@@ -304,4 +306,91 @@ docker exec betterdesk-console node -e \
 
 ---
 
-*Ultimo aggiornamento: 2026-06-04 | Host: MaGaServer1*
+## 12. Script Windows — config RustDesk precedente non rimossa
+
+**Sintomo:** Dopo l'installazione tramite script, RustDesk continua a puntare al server precedente (es. `betterdesk.arancio.me`) invece di quello nuovo.
+
+**Causa:** Lo script non cancellava esplicitamente i file `.toml` esistenti prima di riscrivere la configurazione. RustDesk al primo avvio post-install **ricrea i `.toml` dai propri valori interni** se li trova già validi in uno dei percorsi. Inoltre, il servizio RustDesk veniva riavviato troppo presto (timeout insufficiente), sovrascrivendo i file di config appena scritti.
+
+**I percorsi coinvolti:**
+```
+C:\ProgramData\RustDesk\config\RustDesk2.toml
+C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\RustDesk2.toml
+C:\Windows\System32\config\systemprofile\AppData\Roaming\RustDesk\config\RustDesk2.toml
+C:\Users\Public\RustDesk\config\RustDesk2.toml
+```
+
+**Fix applicato allo script:**
+1. Aggiunto **step 2** dedicato: stop aggressivo del servizio + `DEL /F /Q` di tutti i `.toml` nei 4 percorsi **prima** dell'installazione
+2. Timeout post-installazione aumentato a **15 secondi** (era troppo breve)
+3. Aggiunto secondo stop post-installazione **prima** di scrivere i nuovi `.toml`
+4. La scrittura della config avviene ora in **9 step** con `goto :error` su ogni step critico
+
+**Diagnosi manuale** (se il problema persiste):
+```powershell
+# Controlla quale toml è attivo
+Get-Content "C:\ProgramData\RustDesk\config\RustDesk2.toml"
+
+# Cerca tutti i toml nel sistema
+Get-ChildItem -Path C:\ -Recurse -Filter "RustDesk2.toml" -ErrorAction SilentlyContinue | Select-Object FullName
+```
+
+**Prevenzione:** Eseguire sempre lo script con diritti di Amministratore. Verificare il log `C:\maga-install.log` dopo ogni esecuzione.
+
+---
+
+## 13. Password admin console web si resetta ad ogni riavvio
+
+**Sintomo:** Dopo `docker compose restart` (o riavvio del NAS), la password dell'utente admin torna a quella generata casualmente al primo avvio del container.
+
+**Causa:** Confermata dalla documentazione ufficiale BetterDesk (`docker-entrypoint.sh`): *"The Node.js application handles all database initialization, migration, and admin user creation automatically on startup."* Al riavvio, se `auth.db` risulta mancante o il volume non è persistente, la console **ricrea l'utente admin con password casuale**.
+
+**Le cause più comuni:**
+
+| Causa | Sintomo aggiuntivo |
+|---|---|
+| Volume `console/appdata` non persistente | `auth.db` non trovato dopo riavvio |
+| Mount errato nel `docker-compose.yml` | Path assoluto sbagliato |
+| Permessi errati | `auth.db` non scrivibile → ricreato vuoto |
+| Variabile `INITADMINUSER` che forza recreazione | Log mostra "Creating admin user" ad ogni avvio |
+
+**Diagnosi:**
+```bash
+# 1. Verifica che auth.db esista e persista
+ls -la /volume1/docker/betterdesk/console/appdata/
+
+# 2. Verifica che il volume sia montato correttamente
+docker inspect betterdesk-console | grep -A5 Mounts
+
+# 3. Controlla i log all'avvio per "Creating admin user"
+docker logs betterdesk-console | grep -i "admin\|init\|creat"
+```
+
+**Soluzione:**
+
+Verificare che nel `docker-compose.yml` il volume sia corretto:
+```yaml
+# CORRETTO
+volumes:
+  - /volume1/docker/betterdesk/console/appdata:/appdata
+```
+
+Verificare i permessi:
+```bash
+chown -R 10001:10001 /volume1/docker/betterdesk/console/appdata
+chmod 755 /volume1/docker/betterdesk/console/appdata
+```
+
+> ⚠️ **Regola fondamentale:** Le password degli utenti **NON** devono essere preimpostate nello script o nel compose. La password admin va impostata dalla UI **dopo il primo avvio**, e il volume `appdata` deve essere persistente per mantenerla.
+
+**Procedura corretta al primo avvio:**
+1. Avviare i container: `docker compose up -d`
+2. Attendere che la console sia healthy: `docker compose ps`
+3. Leggere la password generata dai log: `docker logs betterdesk-console | grep -i password`
+4. Accedere alla console web e **cambiare immediatamente** la password da Impostazioni > Profilo
+5. Verificare che `auth.db` esista sul volume host
+6. **Non rimuovere mai** la cartella `console/appdata` senza backup
+
+---
+
+*Ultimo aggiornamento: 2026-06-05 | Host: MaGaServer1*
