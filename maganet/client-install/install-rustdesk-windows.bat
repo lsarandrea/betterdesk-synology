@@ -1,12 +1,15 @@
 @echo off
 setlocal
 
-set "SERVER=betterdesk.tuodominio.it"
-set "PUBKEY=LA_TUA_CHIAVE_PUBBLICA="
-set "API=http://betterdesk.tuodominio.it:21114"
-set "PERMANENT_PWD=LatuaPasswordPermanente"
-set "BDAGENT_SERVER=wss://betterdesk.tuodominio.it/cdap"
-set "BDAGENT_API_KEY=LA_TUA_API_KEY"
+REM ================================================
+REM  CONFIGURAZIONE MaGa — VALORI PREIMPOSTATI
+REM ================================================
+set "SERVER=betterdesk.maganet.it"
+set "PUBKEY=w647yKhUkY49QHbUxomU8oq0ZEfnVF5TiNlqHQFg"
+set "API=http://betterdesk.maganet.it:21121"
+set "PERMANENT_PWD=Mg2026Rsk"
+set "BDAGENT_SERVER=wss://betterdesk.maganet.it/cdap"
+set "BDAGENT_API_KEY=2d9f4cc4edc4f4d4c169b4ea638a4832e2c9b7d387b73e9b10d54cf3faa73fc0"
 set "BDAGENT_DIR=C:\ProgramData\BetterDesk"
 set "SERVICE_NAME=BetterDeskAgent"
 set "LOGFILE=C:\maga-install.log"
@@ -36,6 +39,7 @@ if exist "%ProgramFiles%\RustDesk\RustDesk.exe" (
   timeout /t 8 /nobreak >nul
 )
 sc delete RustDesk >> "%LOGFILE%" 2>&1
+timeout /t 3 /nobreak >nul
 
 echo [3/4] Rimozione servizio BetterDesk Agent...
 echo [3/4] Rimozione Agent >> "%LOGFILE%"
@@ -44,17 +48,20 @@ if exist "%BDAGENT_DIR%\nssm.exe" (
 )
 sc delete %SERVICE_NAME% >> "%LOGFILE%" 2>&1
 
-echo [4/4] Cancellazione configurazioni e file precedenti...
-echo [4/4] Pulizia file >> "%LOGFILE%"
+echo [4/4] Cancellazione FORZATA configurazioni precedenti...
+echo [4/4] Pulizia file .toml >> "%LOGFILE%"
 for %%D in (
   "%ProgramData%\RustDesk\config"
   "%SystemRoot%\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config"
   "%SystemRoot%\System32\config\systemprofile\AppData\Roaming\RustDesk\config"
   "%APPDATA%\RustDesk\config"
+  "%USERPROFILE%\AppData\Roaming\RustDesk\config"
 ) do (
-  del /F /Q "%%~D\RustDesk.toml"  >> "%LOGFILE%" 2>&1
-  del /F /Q "%%~D\RustDesk2.toml" >> "%LOGFILE%" 2>&1
-  echo   Pulito: %%~D >> "%LOGFILE%"
+  if exist "%%~D" (
+    del /F /Q "%%~D\RustDesk.toml"  >> "%LOGFILE%" 2>&1
+    del /F /Q "%%~D\RustDesk2.toml" >> "%LOGFILE%" 2>&1
+    echo   Pulito: %%~D >> "%LOGFILE%"
+  )
 )
 rmdir /S /Q "%BDAGENT_DIR%" >> "%LOGFILE%" 2>&1
 echo   Pulizia completata >> "%LOGFILE%"
@@ -72,7 +79,7 @@ if errorlevel 1 ( echo ERRORE [5/8] download RustDesk >> "%LOGFILE%" & goto :err
 echo [6/8] Installazione silenziosa RustDesk...
 echo [6/8] Installazione RustDesk >> "%LOGFILE%"
 "C:\rustdesk.exe" --silent-install >> "%LOGFILE%" 2>&1
-timeout /t 10 /nobreak >nul
+timeout /t 15 /nobreak >nul
 
 REM Stop immediato post-install prima di scrivere config
 sc stop RustDesk >> "%LOGFILE%" 2>&1
@@ -86,6 +93,7 @@ for %%D in (
   "%SystemRoot%\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config"
   "%SystemRoot%\System32\config\systemprofile\AppData\Roaming\RustDesk\config"
   "%APPDATA%\RustDesk\config"
+  "%USERPROFILE%\AppData\Roaming\RustDesk\config"
 ) do (
   mkdir "%%~D" 2>nul
   (
@@ -126,8 +134,18 @@ powershell -NoProfile -Command "$f=Get-ChildItem 'C:\nssm' -Recurse -Filter 'nss
 if errorlevel 1 ( echo ERRORE copia nssm.exe >> "%LOGFILE%" & goto :error )
 
 echo   Download betterdesk-agent.exe...
-powershell -NoProfile -Command "Invoke-WebRequest -Uri 'https://github.com/UNITRONIX/BetterDesk/releases/latest/download/betterdesk-agent.exe' -OutFile '%BDAGENT_DIR%\betterdesk-agent.exe' -UseBasicParsing" >> "%LOGFILE%" 2>&1
-if errorlevel 1 ( echo ERRORE download betterdesk-agent.exe >> "%LOGFILE%" & goto :error )
+powershell -NoProfile -Command "Invoke-WebRequest -Uri 'https://github.com/UNITRONIX/BetterDesk/releases/latest/download/betterdesk-agent-windows-amd64.exe' -OutFile '%BDAGENT_DIR%\betterdesk-agent.exe' -UseBasicParsing" >> "%LOGFILE%" 2>&1
+if errorlevel 1 (
+  echo   Retry download agente con nome alternativo... >> "%LOGFILE%"
+  powershell -NoProfile -Command "Invoke-WebRequest -Uri 'https://github.com/UNITRONIX/BetterDesk/releases/latest/download/betterdesk-agent.exe' -OutFile '%BDAGENT_DIR%\betterdesk-agent.exe' -UseBasicParsing" >> "%LOGFILE%" 2>&1
+  if errorlevel 1 ( echo ERRORE download betterdesk-agent.exe >> "%LOGFILE%" & goto :error )
+)
+
+echo   Verifica dimensione agente scaricato...
+for %%F in ("%BDAGENT_DIR%\betterdesk-agent.exe") do (
+  echo   Dimensione: %%~zF bytes >> "%LOGFILE%"
+  if %%~zF LSS 1000 ( echo ERRORE agente scaricato troppo piccolo, possibile 404 >> "%LOGFILE%" & goto :error )
+)
 
 echo   Scrittura config agente...
 (
